@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block title %}Lecturer Dashboard - Attendance System{% endblock %}
+
+{% block authenticated_content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-tachometer-alt me-2"></i>Lecturer Dashboard - Welcome, {{ first_name }} {{ last_name }}!
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-primary">Mark Attendance</button>
+        </div>
+    </div>
+</div>
+
+<!-- Messages -->
+{% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4" role="alert">
+        <i class="fas fa-{% if message.tags == 'error' %}exclamation-triangle{% elif message.tags == 'success' %}check-circle{% else %}info-circle{% endif %} me-2"></i>
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+{% endif %}
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card stat-card card-primary h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-book fa-3x text-primary mb-3"></i>
+                <h5>{{ my_courses_count|default:0 }}</h5>
+                <p class="text-muted">My Courses</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card card-success h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-users fa-3x text-success mb-3"></i>
+                <h5>{{ total_students|default:0 }}</h5>
+                <p class="text-muted">Enrolled Students</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card card-warning h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-calendar-check fa-3x text-warning mb-3"></i>
+                <h5>{{ sessions_this_week|default:0 }}</h5>
+                <p class="text-muted">Sessions This Week</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upcoming Sessions -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Upcoming Sessions</h5>
+            </div>
+            <div class="card-body">
+                <p>Your upcoming sessions will appear here.</p>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr><th>Course</th><th>Date</th><th>Time</th><th>Action</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Intro to CS</td><td>Oct 23, 2025</td><td>9:00 AM</td><td><button class="btn btn-sm btn-primary">Mark</button></td></tr>
+                            <tr><td colspan="4" class="text-center text-muted">No more sessions.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

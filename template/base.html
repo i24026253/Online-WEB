@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Attendance Management System{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --success: #27ae60;
+            --warning: #f39c12;
+            --danger: #e74c3c;
+            --light: #ecf0f1;
+            --dark: #2c3e50;
+        }
+        
+        .sidebar {
+            background: var(--primary);
+            min-height: 100vh;
+            transition: all 0.3s;
+        }
+        
+        .sidebar .nav-link {
+            color: white;
+            padding: 12px 20px;
+            margin: 2px 0;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+        
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background: var(--secondary);
+            color: white;
+        }
+        
+        .stat-card {
+            border-left: 4px solid;
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card-primary { border-left-color: var(--secondary); }
+        .card-success { border-left-color: var(--success); }
+        .card-warning { border-left-color: var(--warning); }
+        .card-danger { border-left-color: var(--danger); }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% if request.session.username %}
+    <!-- ✅ Navigation for logged-in users (session-based check) -->
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background: var(--primary);">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{% url 'dashboard' %}">
+                <i class="fas fa-graduation-cap me-2"></i>Attendance System
+            </a>
+            
+            <div class="navbar-nav ms-auto">
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-user-circle me-1"></i> {{ request.session.username }}
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="#"><i class="fas fa-user me-2"></i>Profile</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="fas fa-cog me-2"></i>Settings</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{% url 'logout' %}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-3 col-lg-2 sidebar d-md-block">
+                <div class="position-sticky pt-3">
+                    {% if user_role == 'admin' %}
+                    <h6 class="text-white px-3 mb-3">ADMIN PANEL</h6>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="{% url 'admin_dashboard' %}">
+                                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-users me-2"></i>Users</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-graduation-cap me-2"></i>Students</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-chalkboard-teacher me-2"></i>Lecturers</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-book me-2"></i>Courses</a></li>
+                    </ul>
+
+                    {% elif user_role == 'lecturer' %}
+                    <h6 class="text-white px-3 mb-3">LECTURER PANEL</h6>
+                    <ul class="nav flex-column">
+                        <li class="nav-item"><a class="nav-link active" href="{% url 'lecturer_dashboard' %}"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-book me-2"></i>My Courses</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-calendar-check me-2"></i>Attendance</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-chart-bar me-2"></i>Reports</a></li>
+                    </ul>
+
+                    {% elif user_role == 'student' %}
+                    <h6 class="text-white px-3 mb-3">STUDENT PANEL</h6>
+                    <ul class="nav flex-column">
+                        <li class="nav-item"><a class="nav-link active" href="{% url 'student_dashboard' %}"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-book me-2"></i>My Courses</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-history me-2"></i>Attendance</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-chart-line me-2"></i>Progress</a></li>
+                    </ul>
+                    {% endif %}
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+                {% block authenticated_content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- When not logged in -->
+    {% block unauthenticated_content %}{% endblock %}
+    {% endif %}
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
