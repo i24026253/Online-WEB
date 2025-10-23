@@ -62,8 +62,8 @@ WSGI_APPLICATION = 'attendance_system.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'mssql',
-        'NAME': 'AttendanceManagementDB',  # Replace with your actual DB name (create it in SSMS if needed)
-        'HOST': 'HOH\\SQLEXPRESS',  # Use double backslash in Python strings
+        'NAME': 'WebGrpData',  # Replace with your actual DB name (create it in SSMS if needed)
+        'HOST': 'LAPTOP-8O7OUMB4',  # Use double backslash in Python strings
         'PORT': '',  # Default is fine
         'OPTIONS': {
             'driver': 'ODBC Driver 17 for SQL Server',
