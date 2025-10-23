@@ -177,6 +177,7 @@ def student_dashboard(request):
     total_courses = 0
     average_attendance = 0
     classes_attended = 0
+    enrolled_courses = []
 
     try:
         conn = pyodbc.connect(
@@ -186,7 +187,25 @@ def student_dashboard(request):
             'Trusted_Connection=yes;'
         )
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM dbo.StudentCourses WHERE StudentUsername = ?", (username,))
+
+        # Get student ID
+        cursor.execute("SELECT StudentID FROM dbo.Students WHERE UserID = (SELECT UserID FROM dbo.Users WHERE Username = ?)", (username,))
+        student_id = cursor.fetchone()[0]
+
+        # Fetch enrolled courses
+        cursor.execute("""
+            SELECT c.CourseCode, c.CourseName, e.EnrollmentDate, e.Status
+            FROM dbo.Enrollments e
+            JOIN dbo.Courses c ON e.CourseID = c.CourseID
+            WHERE e.StudentID = ?
+        """, (student_id,))
+        enrolled_courses = [
+            {'CourseCode': row[0], 'CourseName': row[1], 'EnrollmentDate': row[2], 'Status': row[3]}
+            for row in cursor.fetchall()
+        ]
+
+        # Fetch stats
+        cursor.execute("SELECT COUNT(*) FROM dbo.Enrollments WHERE StudentID = ?", (student_id,))
         total_courses = cursor.fetchone()[0]
         cursor.execute("SELECT AVG(AttendanceRate) FROM dbo.Students WHERE Username = ?", (username,))
         average_attendance = cursor.fetchone()[0] or 0
@@ -205,5 +224,6 @@ def student_dashboard(request):
         'total_courses': total_courses,
         'average_attendance': average_attendance,
         'classes_attended': classes_attended,
+        'enrolled_courses': enrolled_courses,
     }
     return render(request, 'dashboard/student_dashboard.html', context)

@@ -35,4 +35,10 @@ if ($conn) {
 } else {
     echo "<h3>No database connection.</h3>";
 }
+
+
+echo date('Y-m-d H:i:s');
+session_start();
+$_SESSION['test'] = 'Hello, Session!';
+echo $_SESSION['test'];
 ?>
