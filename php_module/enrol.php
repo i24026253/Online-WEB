@@ -1,17 +1,16 @@
 <?php
 // Include the database connection
-require_once 'db_connect.php'; // Your existing connection file
+require_once 'connect.php'; // Matches test_php.php
 
-// Start or resume session to get the logged-in student's username
-session_start();
+// Get username from URL
 $username = isset($_GET['username']) ? $_GET['username'] : null;
-if (!$username) {
-    die("<p style='color:red;'>❌ Please log in to enroll in courses.</p>");
-}
 
 if (!$username) {
     die("<p style='color:red;'>❌ Please log in to enroll in courses.</p>");
 }
+
+// Debug: Log username
+error_log("Username: $username");
 
 // Fetch student ID based on username
 $student_query = "SELECT StudentID FROM dbo.Students WHERE UserID = (SELECT UserID FROM dbo.Users WHERE Username = ?)";
@@ -19,21 +18,27 @@ $params = array($username);
 $student_result = sqlsrv_query($conn, $student_query, $params);
 
 if ($student_result === false) {
-    die(print_r(sqlsrv_errors(), true));
+    error_log("Student query error: " . print_r(sqlsrv_errors(), true));
+    die("<p style='color:red;'>❌ Database error: " . print_r(sqlsrv_errors(), true) . "</p>");
 }
 
 $student_row = sqlsrv_fetch_array($student_result, SQLSRV_FETCH_ASSOC);
 $student_id = $student_row ? $student_row['StudentID'] : null;
 
 if (!$student_id) {
+    error_log("Student not found for username: $username");
     die("<p style='color:red;'>❌ Student not found.</p>");
 }
 
 // Handle form submission for enrollment
+// Handle form submission for enrollment
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['course_id'])) {
     $course_id = $_POST['course_id'];
     $enrollment_date = date('Y-m-d H:i:s');
-    $status = 'Enrolled';
+    $status = 'Active'; // Changed from 'Enrolled' to comply with CHECK constraint
+
+    // Debug: Log enrollment attempt
+    error_log("Enrolling StudentID: $student_id in CourseID: $course_id");
 
     // Check if already enrolled
     $check_query = "SELECT COUNT(*) as count FROM dbo.Enrollments WHERE StudentID = ? AND CourseID = ?";
@@ -52,22 +57,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['course_id'])) {
         if ($insert_result) {
             $message = "<p style='color:green;'>✅ Successfully enrolled in the course!</p>";
         } else {
+            error_log("Enrollment error: " . print_r(sqlsrv_errors(), true));
             $message = "<p style='color:red;'>❌ Failed to enroll: " . print_r(sqlsrv_errors(), true) . "</p>";
         }
     }
 }
 
-// Fetch available courses
+// Fetch available courses with enrollment status
 $course_query = "
-    SELECT CourseID, CourseCode, CourseName, Description, Credits
-    FROM dbo.Courses
-    WHERE IsActive = 1
-    AND AcademicYearID = (SELECT TOP 1 AcademicYearID FROM dbo.Academic_Years WHERE IsActive = 1)
+    SELECT c.CourseID, c.CourseCode, c.CourseName, c.Description, c.Credits,
+           CASE WHEN e.StudentID IS NOT NULL THEN 1 ELSE 0 END AS IsEnrolled
+    FROM dbo.Courses c
+    LEFT JOIN dbo.Enrollments e ON c.CourseID = e.CourseID AND e.StudentID = ?
+    WHERE c.IsActive = 1
+    AND c.AcademicYearID = (SELECT TOP 1 AcademicYearID FROM dbo.Academic_Years WHERE IsActive = 1)
 ";
-$course_result = sqlsrv_query($conn, $course_query);
+$course_params = array($student_id);
+$course_result = sqlsrv_query($conn, $course_query, $course_params);
 
 if ($course_result === false) {
-    die(print_r(sqlsrv_errors(), true));
+    error_log("Course query error: " . print_r(sqlsrv_errors(), true));
+    die("<p style='color:red;'>❌ Database error: " . print_r(sqlsrv_errors(), true) . "</p>");
 }
 ?>
 
@@ -89,7 +99,7 @@ if ($course_result === false) {
     <div class="container mt-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h1 class="h2"><i class="fas fa-book me-2"></i>Course Enrollment</h1>
-            <a href="http://localhost/dashboard/student_dashboard.html" class="btn btn-outline-primary btn-sm">
+            <a href="http://127.0.0.1:8000/student-dashboard/?username=<?php echo urlencode($username); ?>" class="btn btn-outline-primary btn-sm">
                 <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
             </a>
         </div>
@@ -122,12 +132,16 @@ if ($course_result === false) {
                                     <td><?php echo htmlspecialchars($course['Description'] ?? 'No description'); ?></td>
                                     <td><?php echo htmlspecialchars($course['Credits']); ?></td>
                                     <td>
-                                        <form method="POST" action="enroll.php">
-                                            <input type="hidden" name="course_id" value="<?php echo $course['CourseID']; ?>">
-                                            <button type="submit" class="btn btn-success btn-sm">
-                                                <i class="fas fa-plus-circle me-2"></i>Enroll
-                                            </button>
-                                        </form>
+                                        <?php if ($course['IsEnrolled'] == 1) { ?>
+                                            <span class="text-muted">Already Enrolled</span>
+                                        <?php } else { ?>
+                                            <form method="POST" action="enrol.php?username=<?php echo urlencode($username); ?>">
+                                                <input type="hidden" name="course_id" value="<?php echo $course['CourseID']; ?>">
+                                                <button type="submit" class="btn btn-success btn-sm">
+                                                    <i class="fas fa-plus-circle me-2"></i>Enroll
+                                                </button>
+                                            </form>
+                                        <?php } ?>
                                     </td>
                                 </tr>
                             <?php } ?>

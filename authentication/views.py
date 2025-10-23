@@ -168,8 +168,10 @@ def lecturer_dashboard(request):
     return render(request, 'dashboard/lecturer_dashboard.html', context)
 
 # 🔹 STUDENT DASHBOARD
+
 def student_dashboard(request):
-    username = request.session.get('username', 'Unknown')
+    # Get username from session or query parameter
+    username = request.session.get('username') or request.GET.get('username', 'Unknown')
     role = request.session.get('role', 'unknown')
     first_name = request.session.get('first_name', '')
     last_name = request.session.get('last_name', '')
@@ -180,6 +182,7 @@ def student_dashboard(request):
     enrolled_courses = []
 
     try:
+        # Connect to the database
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
             'SERVER=LAPTOP-8O7OUMB4;'
@@ -188,9 +191,18 @@ def student_dashboard(request):
         )
         cursor = conn.cursor()
 
-        # Get student ID
-        cursor.execute("SELECT StudentID FROM dbo.Students WHERE UserID = (SELECT UserID FROM dbo.Users WHERE Username = ?)", (username,))
-        student_id = cursor.fetchone()[0]
+        # Fetch student_id, first_name, and last_name
+        cursor.execute("""
+            SELECT s.StudentID, u.FirstName, u.LastName
+            FROM dbo.Students s
+            JOIN dbo.Users u ON s.UserID = u.UserID
+            WHERE u.Username = ?
+        """, (username,))
+        student_data = cursor.fetchone()
+        if not student_data:
+            messages.error(request, "Student not found for this username.")
+            return redirect('login')
+        student_id, first_name, last_name = student_data
 
         # Fetch enrolled courses
         cursor.execute("""
@@ -203,17 +215,31 @@ def student_dashboard(request):
             {'CourseCode': row[0], 'CourseName': row[1], 'EnrollmentDate': row[2], 'Status': row[3]}
             for row in cursor.fetchall()
         ]
+        total_courses = len(enrolled_courses)
 
-        # Fetch stats
-        cursor.execute("SELECT COUNT(*) FROM dbo.Enrollments WHERE StudentID = ?", (student_id,))
-        total_courses = cursor.fetchone()[0]
-        cursor.execute("SELECT AVG(AttendanceRate) FROM dbo.Students WHERE Username = ?", (username,))
-        average_attendance = cursor.fetchone()[0] or 0
-        cursor.execute("SELECT COUNT(*) FROM dbo.AttendanceRecords WHERE StudentUsername = ? AND Status = 'Present'", (username,))
-        classes_attended = cursor.fetchone()[0]
-        conn.close()
+        # Fetch attendance statistics for enrolled courses in the current academic year
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_classes,
+                SUM(CASE WHEN ar.Status = 'Present' THEN 1 ELSE 0 END) as classes_attended
+            FROM dbo.Attendance_Records ar
+            JOIN dbo.Attendance_Sessions s ON ar.SessionID = s.SessionID
+            JOIN dbo.Enrollments e ON s.CourseID = e.CourseID
+            JOIN dbo.Courses c ON e.CourseID = c.CourseID
+            WHERE e.StudentID = ? 
+            AND c.AcademicYearID = (SELECT TOP 1 AcademicYearID FROM dbo.Academic_Years WHERE IsActive = 1)
+            AND s.IsActive = 1
+        """, (student_id,))
+        attendance_data = cursor.fetchone()
+        total_classes = attendance_data[0] if attendance_data else 0
+        classes_attended = attendance_data[1] if attendance_data else 0
+        average_attendance = (classes_attended / total_classes * 100) if total_classes > 0 else 0
+
     except Exception as e:
-        messages.warning(request, f"Student stats error: {e} - Using defaults.")
+        messages.warning(request, f"Student stats error: {str(e)} - Using defaults.")
+    finally:
+        cursor.close()
+        conn.close()
 
     context = {
         'user_role': role,
@@ -222,7 +248,7 @@ def student_dashboard(request):
         'last_name': last_name,
         'dashboard_title': f"<i class='fas fa-tachometer-alt me-2'></i>Student Dashboard - Welcome, {first_name} {last_name}!",
         'total_courses': total_courses,
-        'average_attendance': average_attendance,
+        'average_attendance': round(average_attendance, 2),
         'classes_attended': classes_attended,
         'enrolled_courses': enrolled_courses,
     }
