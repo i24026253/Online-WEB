@@ -57,7 +57,8 @@
         <div class="card">
             <div class="card-header">
                 <h5>My Schedule & Attendance</h5>
-                <a href="http://localhost/php_module/enrol.php?username={{ username }}" class="btn btn-outline-success btn-sm float-end">                    <i class="fas fa-plus-circle me-2"></i>Enroll in a Course
+                <a href="http://localhost/php_module/enrol.php?username={{ username }}" class="btn btn-outline-success btn-sm float-end">
+                    <i class="fas fa-plus-circle me-2"></i>Enroll in a Course
                 </a>
             </div>
             <div class="card-body">
@@ -73,7 +74,11 @@
                                     <td>{{ course.CourseCode }}</td>
                                     <td>{{ course.CourseName }}</td>
                                     <td>{{ course.EnrollmentDate|date:"M d, Y" }}</td>
-                                    <td><span class="badge bg-{% if course.Status == 'Enrolled' %}success{% else %}warning{% endif %}">{{ course.Status }}</span></td>
+                                    <td>
+                                        <span class="badge bg-{% if course.Status == 'Active' %}success{% elif course.Status == 'Pending' %}warning{% elif course.Status == 'Pending Drop' %}danger{% else %}secondary{% endif %}">
+                                            {{ course.Status }}
+                                        </span>
+                                    </td>
                                 </tr>
                             {% empty %}
                                 <tr><td colspan="4" class="text-center text-muted">No enrolled courses.</td></tr>
