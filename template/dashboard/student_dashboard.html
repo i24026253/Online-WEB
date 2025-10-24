@@ -75,8 +75,15 @@
                                     <td>{{ course.CourseName }}</td>
                                     <td>{{ course.EnrollmentDate|date:"M d, Y" }}</td>
                                     <td>
-                                        <span class="badge bg-{% if course.Status == 'Active' %}success{% elif course.Status == 'Pending' %}warning{% elif course.Status == 'Pending Drop' %}danger{% else %}secondary{% endif %}">
+                                        <span class="badge bg-{% if course.Status == 'Active' %}success{% elif course.Status == 'Pending Enroll' %}warning{% elif course.Status == 'Pending Drop' %}danger{% else %}secondary{% endif %}">
                                             {{ course.Status }}
+                                            {% if course.Status == 'Active' and course.DropRejectionReason %}
+                                                <small>(Drop Rejected: {{ course.DropRejectionReason }})</small>
+                                            {% elif course.Status == 'Rejected' and course.RejectionReason %}
+                                                <small>({{ course.RejectionReason }})</small>
+                                            {% elif course.Status == 'Dropped' %}
+                                                <small>(Dropped)</small>
+                                            {% endif %}
                                         </span>
                                     </td>
                                 </tr>

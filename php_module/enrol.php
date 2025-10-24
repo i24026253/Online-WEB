@@ -1,6 +1,6 @@
 <?php
 // Include the database connection
-require_once 'connect.php'; // Matches test_php.php
+require_once 'connect.php';
 
 // Get username from URL
 $username = isset($_GET['username']) ? $_GET['username'] : null;
@@ -40,16 +40,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enroll_submit'])) {
     // Debug: Log enrollment attempt
     error_log("Enrolling StudentID: $student_id in CourseID: $course_id with Reason: $reason");
 
-    // Check if already enrolled
-    $check_query = "SELECT COUNT(*) as count FROM dbo.Enrollments WHERE StudentID = ? AND CourseID = ?";
+    // Check for existing active or pending enrollment
+    $check_query = "SELECT COUNT(*) as count FROM dbo.Enrollments WHERE StudentID = ? AND CourseID = ? AND Status IN ('Active', ' Enroll', 'Pending Drop')";
     $check_params = array($student_id, $course_id);
     $check_result = sqlsrv_query($conn, $check_query, $check_params);
     $check_row = sqlsrv_fetch_array($check_result, SQLSRV_FETCH_ASSOC);
 
     if ($check_row['count'] > 0) {
-        $message = "<p style='color:orange;'>⚠️ You are already enrolled in this course.</p>";
+        $message = "<p style='color:orange;'>⚠️ You already have an active or pending enrollment for this course.</p>";
     } else {
-        // Insert enrollment
+        // Insert new enrollment
         $insert_query = "INSERT INTO dbo.Enrollments (StudentID, CourseID, EnrollmentDate, Status, RequestReason) VALUES (?, ?, ?, ?, ?)";
         $insert_params = array($student_id, $course_id, $enrollment_date, $status, $reason);
         $insert_result = sqlsrv_query($conn, $insert_query, $insert_params);
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['drop_submit'])) {
     error_log("Dropping EnrollmentID: $enrollment_id with Reason: $reason");
 
     // Update enrollment status and reason
-    $update_query = "UPDATE dbo.Enrollments SET Status = ?, RequestReason = ? WHERE EnrollmentID = ? AND StudentID = ?";
+    $update_query = "UPDATE dbo.Enrollments SET Status = ?, RequestReason = ?, DropRejectionReason = NULL WHERE EnrollmentID = ? AND StudentID = ?";
     $update_params = array($status, $reason, $enrollment_id, $student_id);
     $update_result = sqlsrv_query($conn, $update_query, $update_params);
 
@@ -85,14 +85,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['drop_submit'])) {
     }
 }
 
-// Fetch available courses with enrollment status
+// Fetch available courses with the latest enrollment status
 $course_query = "
-    SELECT c.CourseID, c.CourseCode, c.CourseName, c.Description, c.Credits, e.EnrollmentID, e.Status
+    SELECT c.CourseID, c.CourseCode, c.CourseName, c.Description, c.Credits, e.EnrollmentID, e.Status, e.RejectionReason, e.DropRejectionReason
     FROM dbo.Courses c
-    LEFT JOIN dbo.Enrollments e ON c.CourseID = e.CourseID AND e.StudentID = ?
+    LEFT JOIN (
+        SELECT EnrollmentID, StudentID, CourseID, Status, RejectionReason, DropRejectionReason, EnrollmentDate,
+               ROW_NUMBER() OVER (PARTITION BY StudentID, CourseID ORDER BY EnrollmentDate DESC) as rn
+        FROM dbo.Enrollments
+        WHERE StudentID = ?
+    ) e ON c.CourseID = e.CourseID AND e.rn = 1
     WHERE c.IsActive = 1
     AND c.AcademicYearID = (SELECT TOP 1 AcademicYearID FROM dbo.Academic_Years WHERE IsActive = 1)
-    AND (e.Status IS NULL OR e.Status != 'Dropped')
 ";
 $course_params = array($student_id);
 $course_result = sqlsrv_query($conn, $course_query, $course_params);
@@ -115,6 +119,7 @@ if ($course_result === false) {
         .card { margin-bottom: 20px; }
         .table-responsive { margin-top: 20px; }
         .alert { margin-bottom: 20px; }
+        .status-note { font-size: 0.8em; color: #6c757d; }
     </style>
 </head>
 <body>
@@ -155,7 +160,7 @@ if ($course_result === false) {
                                     <td><?php echo htmlspecialchars($course['Credits']); ?></td>
                                     <td>
                                         <?php if ($course['EnrollmentID'] && $course['Status'] === 'Active') { ?>
-                                            <span class="text-muted">Enrolled (Active)</span>
+                                            <span class="text-muted">Enrolled (Active)<?php echo $course['DropRejectionReason'] ? ' <span class="status-note">(Drop Rejected: ' . htmlspecialchars($course['DropRejectionReason']) . ')</span>' : ''; ?></span>
                                             <button type="button" class="btn btn-outline-danger btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#dropModal<?php echo $course['EnrollmentID']; ?>">
                                                 <i class="fas fa-minus-circle me-2"></i>Drop
                                             </button>
@@ -188,9 +193,75 @@ if ($course_result === false) {
                                                 </div>
                                             </div>
                                         <?php } elseif ($course['EnrollmentID'] && $course['Status'] === 'Pending Enroll') { ?>
-                                            <span class="text-muted">Pending Enroll (Awaiting Admin Approval)</span>
+                                            <span class="text-muted">Pending (Awaiting Admin Approval)</span>
                                         <?php } elseif ($course['EnrollmentID'] && $course['Status'] === 'Pending Drop') { ?>
                                             <span class="text-muted">Pending Drop (Awaiting Admin Approval)</span>
+                                        <?php } elseif ($course['EnrollmentID'] && $course['Status'] === 'Dropped') { ?>
+                                            <span class="status-note">Previously Dropped</span>
+                                            <button type="button" class="btn btn-success btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#enrollModal<?php echo $course['CourseID']; ?>">
+                                                <i class="fas fa-plus-circle me-2"></i>Enroll
+                                            </button>
+                                            <!-- Enroll Course Modal -->
+                                            <div class="modal fade" id="enrollModal<?php echo $course['CourseID']; ?>" tabindex="-1" aria-labelledby="enrollModalLabel<?php echo $course['CourseID']; ?>" aria-hidden="true">
+                                                <div class="modal-dialog">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title" id="enrollModalLabel<?php echo $course['CourseID']; ?>">Enroll in Course</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+                                                        <form method="POST" action="enrol.php?username=<?php echo urlencode($username); ?>">
+                                                            <div class="modal-body">
+                                                                <div class="mb-3">
+                                                                    <label for="enrollSubject<?php echo $course['CourseID']; ?>" class="form-label">Subject</label>
+                                                                    <input type="text" class="form-control" id="enrollSubject<?php echo $course['CourseID']; ?>" value="<?php echo htmlspecialchars($course['CourseCode'] . ' - ' . $course['CourseName']); ?>" readonly>
+                                                                    <input type="hidden" name="course_id" value="<?php echo $course['CourseID']; ?>">
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label for="enrollReason<?php echo $course['CourseID']; ?>" class="form-label">Reason for Enrollment</label>
+                                                                    <textarea class="form-control" id="enrollReason<?php echo $course['CourseID']; ?>" name="reason" rows="4" required></textarea>
+                                                                </div>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                                <button type="submit" name="enroll_submit" class="btn btn-success">Submit Enrollment Request</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        <?php } elseif ($course['EnrollmentID'] && $course['Status'] === 'Rejected') { ?>
+                                            <span class="status-note">Previously Rejected<?php echo $course['RejectionReason'] ? ' (' . htmlspecialchars($course['RejectionReason']) . ')' : ''; ?></span>
+                                            <button type="button" class="btn btn-success btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#enrollModal<?php echo $course['CourseID']; ?>">
+                                                <i class="fas fa-plus-circle me-2"></i>Enroll
+                                            </button>
+                                            <!-- Enroll Course Modal -->
+                                            <div class="modal fade" id="enrollModal<?php echo $course['CourseID']; ?>" tabindex="-1" aria-labelledby="enrollModalLabel<?php echo $course['CourseID']; ?>" aria-hidden="true">
+                                                <div class="modal-dialog">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title" id="enrollModalLabel<?php echo $course['CourseID']; ?>">Enroll in Course</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+                                                        <form method="POST" action="enrol.php?username=<?php echo urlencode($username); ?>">
+                                                            <div class="modal-body">
+                                                                <div class="mb-3">
+                                                                    <label for="enrollSubject<?php echo $course['CourseID']; ?>" class="form-label">Subject</label>
+                                                                    <input type="text" class="form-control" id="enrollSubject<?php echo $course['CourseID']; ?>" value="<?php echo htmlspecialchars($course['CourseCode'] . ' - ' . $course['CourseName']); ?>" readonly>
+                                                                    <input type="hidden" name="course_id" value="<?php echo $course['CourseID']; ?>">
+                                                                </div>
+                                                                <div class="mb-3">
+                                                                    <label for="enrollReason<?php echo $course['CourseID']; ?>" class="form-label">Reason for Enrollment</label>
+                                                                    <textarea class="form-control" id="enrollReason<?php echo $course['CourseID']; ?>" name="reason" rows="4" required></textarea>
+                                                                </div>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                                <button type="submit" name="enroll_submit" class="btn btn-success">Submit Enrollment Request</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         <?php } elseif ($course['EnrollmentID']) { ?>
                                             <span class="text-muted">Enrolled (<?php echo htmlspecialchars($course['Status']); ?>)</span>
                                         <?php } else { ?>

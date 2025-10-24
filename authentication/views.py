@@ -206,15 +206,25 @@ def student_dashboard(request):
 
         # Fetch enrolled courses
         cursor.execute("""
-            SELECT c.CourseCode, c.CourseName, e.EnrollmentDate, e.Status
+            SELECT c.CourseCode, c.CourseName, e.EnrollmentDate, e.Status, e.RejectionReason, e.DropRejectionReason
             FROM dbo.Enrollments e
             JOIN dbo.Courses c ON e.CourseID = c.CourseID
-            WHERE e.StudentID = ?
-        """, (student_id,))
+            JOIN dbo.Students s ON e.StudentID = s.StudentID
+            JOIN dbo.Users u ON s.UserID = u.UserID
+            WHERE u.Username = ?
+        """, (username,))
         enrolled_courses = [
-            {'CourseCode': row[0], 'CourseName': row[1], 'EnrollmentDate': row[2], 'Status': row[3]}
-            for row in cursor.fetchall()
-        ]
+        {
+            'CourseCode': row.CourseCode,
+            'CourseName': row.CourseName,
+            'EnrollmentDate': row.EnrollmentDate,
+            'Status': row.Status,
+            'RejectionReason': row.RejectionReason,
+            'DropRejectionReason': row.DropRejectionReason
+        }
+        for row in cursor.fetchall()
+    ]
+
         total_courses = len(enrolled_courses)
 
         # Fetch attendance statistics for enrolled courses in the current academic year
