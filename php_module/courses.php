@@ -127,25 +127,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_lecturer'])) {
     $lecturer_id = (int)$_POST['lecturer_id'];
     $assigned_date = date('Y-m-d H:i:s');
 
-    // Deactivate existing assignment
-    $deactivate_query = "UPDATE dbo.Course_Assignments SET IsActive = 0 WHERE CourseID = ? AND IsActive = 1";
-    $deactivate_params = array($course_id);
-    $deactivate_result = sqlsrv_query($conn, $deactivate_query, $deactivate_params);
+    // Check if the selected lecturer is already actively assigned to the course
+    $current_assignment_query = "SELECT LecturerID FROM dbo.Course_Assignments WHERE CourseID = ? AND IsActive = 1";
+    $current_assignment_params = array($course_id);
+    $current_assignment_result = sqlsrv_query($conn, $current_assignment_query, $current_assignment_params);
 
-    if ($deactivate_result === false) {
-        error_log("Deactivate assignment error: " . print_r(sqlsrv_errors(), true));
-    }
-
-    // Insert new assignment
-    $insert_query = "INSERT INTO dbo.Course_Assignments (CourseID, LecturerID, AssignedDate, IsActive) VALUES (?, ?, ?, 1)";
-    $insert_params = array($course_id, $lecturer_id, $assigned_date);
-    $insert_result = sqlsrv_query($conn, $insert_query, $insert_params);
-
-    if ($insert_result) {
-        $message = "<p style='color:green;'>✅ Lecturer assigned successfully.</p>";
-    } else {
-        error_log("Assign lecturer error: " . print_r(sqlsrv_errors(), true));
+    if ($current_assignment_result === false) {
+        error_log("Check current assignment error: " . print_r(sqlsrv_errors(), true));
         $message = "<p style='color:red;'>❌ Failed to assign lecturer: " . print_r(sqlsrv_errors(), true) . "</p>";
+    } else {
+        $current_assignment = sqlsrv_fetch_array($current_assignment_result, SQLSRV_FETCH_ASSOC);
+        sqlsrv_free_stmt($current_assignment_result);
+
+        if ($current_assignment && $current_assignment['LecturerID'] == $lecturer_id) {
+            $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>❌ Cannot reassign the same lecturer.<button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button></div>";
+        } else {
+            // Check if an inactive assignment exists for this CourseID and LecturerID
+            $check_query = "SELECT AssignmentID FROM dbo.Course_Assignments WHERE CourseID = ? AND LecturerID = ? AND IsActive = 0";
+            $check_params = array($course_id, $lecturer_id);
+            $check_result = sqlsrv_query($conn, $check_query, $check_params);
+
+            if ($check_result === false) {
+                error_log("Check assignment error: " . print_r(sqlsrv_errors(), true));
+                $message = "<p style='color:red;'>❌ Failed to assign lecturer: " . print_r(sqlsrv_errors(), true) . "</p>";
+            } else {
+                $existing_assignment = sqlsrv_fetch_array($check_result, SQLSRV_FETCH_ASSOC);
+                sqlsrv_free_stmt($check_result);
+
+                if ($existing_assignment) {
+                    // Reactivate existing inactive assignment
+                    $reactivate_query = "UPDATE dbo.Course_Assignments SET IsActive = 1, AssignedDate = ? WHERE AssignmentID = ?";
+                    $reactivate_params = array($assigned_date, $existing_assignment['AssignmentID']);
+                    $reactivate_result = sqlsrv_query($conn, $reactivate_query, $reactivate_params);
+
+                    if ($reactivate_result) {
+                        // Deactivate any other active assignment for the course
+                        $deactivate_query = "UPDATE dbo.Course_Assignments SET IsActive = 0 WHERE CourseID = ? AND AssignmentID != ? AND IsActive = 1";
+                        $deactivate_params = array($course_id, $existing_assignment['AssignmentID']);
+                        $deactivate_result = sqlsrv_query($conn, $deactivate_query, $deactivate_params);
+
+                        if ($deactivate_result === false) {
+                            error_log("Deactivate other assignments error: " . print_r(sqlsrv_errors(), true));
+                        }
+                        $message = "<p style='color:green;'>✅ Lecturer assigned successfully.</p>";
+                    } else {
+                        error_log("Reactivate assignment error: " . print_r(sqlsrv_errors(), true));
+                        $message = "<p style='color:red;'>❌ Failed to assign lecturer: " . print_r(sqlsrv_errors(), true) . "</p>";
+                    }
+                } else {
+                    // Deactivate existing active assignment
+                    $deactivate_query = "UPDATE dbo.Course_Assignments SET IsActive = 0 WHERE CourseID = ? AND IsActive = 1";
+                    $deactivate_params = array($course_id);
+                    $deactivate_result = sqlsrv_query($conn, $deactivate_query, $deactivate_params);
+
+                    if ($deactivate_result === false) {
+                        error_log("Deactivate assignment error: " . print_r(sqlsrv_errors(), true));
+                    }
+
+                    // Insert new assignment
+                    $insert_query = "INSERT INTO dbo.Course_Assignments (CourseID, LecturerID, AssignedDate, IsActive) VALUES (?, ?, ?, 1)";
+                    $insert_params = array($course_id, $lecturer_id, $assigned_date);
+                    $insert_result = sqlsrv_query($conn, $insert_query, $insert_params);
+
+                    if ($insert_result) {
+                        $message = "<p style='color:green;'>✅ Lecturer assigned successfully.</p>";
+                    } else {
+                        error_log("Assign lecturer error: " . print_r(sqlsrv_errors(), true));
+                        $message = "<p style='color:red;'>❌ Failed to assign lecturer: " . print_r(sqlsrv_errors(), true) . "</p>";
+                    }
+                }
+            }
+        }
     }
 }
 
