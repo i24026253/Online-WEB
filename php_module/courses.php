@@ -1,4 +1,7 @@
 <?php
+// Include header component
+require_once 'header.php';
+
 // Include the database connection
 require_once 'connect.php';
 
@@ -12,7 +15,7 @@ if (!$username) {
 // Debug: Log username
 error_log("Admin Username: $username");
 
-// Verify admin role
+// Verify admin role and get user info
 $admin_query = "SELECT u.UserID, u.Role FROM dbo.Users u WHERE u.Username = ?";
 $params = array($username);
 $admin_result = sqlsrv_query($conn, $admin_query, $params);
@@ -27,6 +30,9 @@ if (!$admin_row || $admin_row['Role'] !== 'Admin') {
     error_log("User $username is not an admin");
     die("<p style='color:red;'>❌ Access denied: Admin privileges required.</p>");
 }
+
+// Set user role for header
+$user_role = strtolower($admin_row['Role']);
 
 // Handle add course
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_course'])) {
@@ -43,10 +49,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_course'])) {
     $insert_result = sqlsrv_query($conn, $insert_query, $insert_params);
 
     if ($insert_result) {
-        $message = "<p style='color:green;'>✅ Course added successfully.</p>";
+        $message = "<div class='alert alert-success alert-dismissible fade show' role='alert'><i class='fas fa-check-circle me-2'></i>Course added successfully.<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
     } else {
         error_log("Add course error: " . print_r(sqlsrv_errors(), true));
-        $message = "<p style='color:red;'>❌ Failed to add course: " . print_r(sqlsrv_errors(), true) . "</p>";
+        $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'><i class='fas fa-times-circle me-2'></i>Failed to add course: " . print_r(sqlsrv_errors(), true) . "<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
     }
 }
 
@@ -66,10 +72,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_course'])) {
     $update_result = sqlsrv_query($conn, $update_query, $update_params);
 
     if ($update_result) {
-        $message = "<p style='color:green;'>✅ Course updated successfully.</p>";
+        $message = "<div class='alert alert-success alert-dismissible fade show' role='alert'><i class='fas fa-check-circle me-2'></i>Course updated successfully.<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
     } else {
         error_log("Update course error: " . print_r(sqlsrv_errors(), true));
-        $message = "<p style='color:red;'>❌ Failed to update course: " . print_r(sqlsrv_errors(), true) . "</p>";
+        $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'><i class='fas fa-times-circle me-2'></i>Failed to update course: " . print_r(sqlsrv_errors(), true) . "<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
     }
 }
 
@@ -86,11 +92,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_active'])) {
 
         if ($enrollment_result === false) {
             error_log("Enrollment check error: " . print_r(sqlsrv_errors(), true));
-            $message = "<p style='color:red;'>❌ Database error: " . print_r(sqlsrv_errors(), true) . "</p>";
+            $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'><i class='fas fa-times-circle me-2'></i>Database error: " . print_r(sqlsrv_errors(), true) . "<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
         } else {
             $enrollment_row = sqlsrv_fetch_array($enrollment_result, SQLSRV_FETCH_ASSOC);
             if ($enrollment_row['enrollment_count'] > 0) {
-                $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>❌ Cannot deactivate course: It has active student enrollments.<button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button></div>";
+                $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'><i class='fas fa-exclamation-triangle me-2'></i>Cannot deactivate course: It has active student enrollments.<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
                 sqlsrv_free_stmt($enrollment_result);
             } else {
                 sqlsrv_free_stmt($enrollment_result);
@@ -99,10 +105,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_active'])) {
                 $update_result = sqlsrv_query($conn, $update_query, $update_params);
 
                 if ($update_result) {
-                    $message = "<p style='color:green;'>✅ Course status updated successfully.</p>";
+                    $message = "<div class='alert alert-success alert-dismissible fade show' role='alert'><i class='fas fa-check-circle me-2'></i>Course status updated successfully.<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
                 } else {
                     error_log("Toggle active error: " . print_r(sqlsrv_errors(), true));
-                    $message = "<p style='color:red;'>❌ Failed to update course status: " . print_r(sqlsrv_errors(), true) . "</p>";
+                    $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'><i class='fas fa-times-circle me-2'></i>Failed to update course status: " . print_r(sqlsrv_errors(), true) . "<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
                 }
             }
         }
@@ -113,10 +119,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_active'])) {
         $update_result = sqlsrv_query($conn, $update_query, $update_params);
 
         if ($update_result) {
-            $message = "<p style='color:green;'>✅ Course status updated successfully.</p>";
+            $message = "<div class='alert alert-success alert-dismissible fade show' role='alert'><i class='fas fa-check-circle me-2'></i>Course status updated successfully.<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
         } else {
             error_log("Toggle active error: " . print_r(sqlsrv_errors(), true));
-            $message = "<p style='color:red;'>❌ Failed to update course status: " . print_r(sqlsrv_errors(), true) . "</p>";
+            $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'><i class='fas fa-times-circle me-2'></i>Failed to update course status: " . print_r(sqlsrv_errors(), true) . "<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
         }
     }
 }
@@ -134,13 +140,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_lecturer'])) {
 
     if ($current_assignment_result === false) {
         error_log("Check current assignment error: " . print_r(sqlsrv_errors(), true));
-        $message = "<p style='color:red;'>❌ Failed to assign lecturer: " . print_r(sqlsrv_errors(), true) . "</p>";
+        $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'><i class='fas fa-times-circle me-2'></i>Failed to assign lecturer: " . print_r(sqlsrv_errors(), true) . "<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
     } else {
         $current_assignment = sqlsrv_fetch_array($current_assignment_result, SQLSRV_FETCH_ASSOC);
         sqlsrv_free_stmt($current_assignment_result);
 
         if ($current_assignment && $current_assignment['LecturerID'] == $lecturer_id) {
-            $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>❌ Cannot reassign the same lecturer.<button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button></div>";
+            $message = "<div class='alert alert-warning alert-dismissible fade show' role='alert'><i class='fas fa-exclamation-triangle me-2'></i>Cannot reassign the same lecturer.<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
         } else {
             // Check if an inactive assignment exists for this CourseID and LecturerID
             $check_query = "SELECT AssignmentID FROM dbo.Course_Assignments WHERE CourseID = ? AND LecturerID = ? AND IsActive = 0";
@@ -149,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_lecturer'])) {
 
             if ($check_result === false) {
                 error_log("Check assignment error: " . print_r(sqlsrv_errors(), true));
-                $message = "<p style='color:red;'>❌ Failed to assign lecturer: " . print_r(sqlsrv_errors(), true) . "</p>";
+                $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'><i class='fas fa-times-circle me-2'></i>Failed to assign lecturer: " . print_r(sqlsrv_errors(), true) . "<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
             } else {
                 $existing_assignment = sqlsrv_fetch_array($check_result, SQLSRV_FETCH_ASSOC);
                 sqlsrv_free_stmt($check_result);
@@ -169,10 +175,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_lecturer'])) {
                         if ($deactivate_result === false) {
                             error_log("Deactivate other assignments error: " . print_r(sqlsrv_errors(), true));
                         }
-                        $message = "<p style='color:green;'>✅ Lecturer assigned successfully.</p>";
+                        $message = "<div class='alert alert-success alert-dismissible fade show' role='alert'><i class='fas fa-check-circle me-2'></i>Lecturer assigned successfully.<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
                     } else {
                         error_log("Reactivate assignment error: " . print_r(sqlsrv_errors(), true));
-                        $message = "<p style='color:red;'>❌ Failed to assign lecturer: " . print_r(sqlsrv_errors(), true) . "</p>";
+                        $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'><i class='fas fa-times-circle me-2'></i>Failed to assign lecturer: " . print_r(sqlsrv_errors(), true) . "<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
                     }
                 } else {
                     // Deactivate existing active assignment
@@ -190,10 +196,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_lecturer'])) {
                     $insert_result = sqlsrv_query($conn, $insert_query, $insert_params);
 
                     if ($insert_result) {
-                        $message = "<p style='color:green;'>✅ Lecturer assigned successfully.</p>";
+                        $message = "<div class='alert alert-success alert-dismissible fade show' role='alert'><i class='fas fa-check-circle me-2'></i>Lecturer assigned successfully.<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
                     } else {
                         error_log("Assign lecturer error: " . print_r(sqlsrv_errors(), true));
-                        $message = "<p style='color:red;'>❌ Failed to assign lecturer: " . print_r(sqlsrv_errors(), true) . "</p>";
+                        $message = "<div class='alert alert-danger alert-dismissible fade show' role='alert'><i class='fas fa-times-circle me-2'></i>Failed to assign lecturer: " . print_r(sqlsrv_errors(), true) . "<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
                     }
                 }
             }
@@ -251,237 +257,247 @@ if ($lecturers_result) {
     error_log("Lecturers query error: " . print_r(sqlsrv_errors(), true));
     die("<p style='color:red;'>❌ Database error: " . print_r(sqlsrv_errors(), true) . "</p>");
 }
+
+// Render header with navigation
+renderHeader($username, $user_role, 'courses');
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Course Management - Attendance System</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        .card { margin-bottom: 20px; }
-        .table-responsive { margin-top: 20px; }
-        .alert { margin-bottom: 20px; }
-    </style>
-</head>
-<body>
-    <div class="container mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h1 class="h2"><i class="fas fa-book me-2"></i>Course Management</h1>
-            <a href="http://127.0.0.1:8000/admin-dashboard/?username=<?php echo urlencode($username); ?>" class="btn btn-outline-primary btn-sm">
-                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
-            </a>
-        </div>
+<!-- Page Content Starts Here -->
+<div class="mb-4">
+    <h1 class="h2"><i class="fas fa-book me-2"></i>Course Management</h1>
+</div>
 
-        <!-- Display messages -->
-        <?php if (isset($message)) echo $message; ?>
+<!-- Display messages -->
+<?php if (isset($message)) echo $message; ?>
 
-        <!-- Add Course Button -->
-        <button type="button" class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#addCourseModal">
-            <i class="fas fa-plus-circle me-2"></i>Add Course
-        </button>
+<!-- Add Course Button -->
+<button type="button" class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#addCourseModal">
+    <i class="fas fa-plus-circle me-2"></i>Add Course
+</button>
 
-        <!-- Courses Table -->
-        <div class="card">
-            <div class="card-header">
-                <h5>Courses</h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Course Code</th>
-                                <th>Course Name</th>
-                                <th>Description</th>
-                                <th>Credits</th>
-                                <th>Department</th>
-                                <th>Academic Year</th>
-                                <th>Lecturer</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($course = sqlsrv_fetch_array($courses_result, SQLSRV_FETCH_ASSOC)) { ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($course['CourseCode']); ?></td>
-                                    <td><?php echo htmlspecialchars($course['CourseName']); ?></td>
-                                    <td><?php echo htmlspecialchars($course['Description'] ?? 'No description'); ?></td>
-                                    <td><?php echo htmlspecialchars($course['Credits']); ?></td>
-                                    <td><?php echo htmlspecialchars($course['Department']); ?></td>
-                                    <td><?php echo htmlspecialchars($course['YearName'] ?? $course['AcademicYearID']); ?></td>
-                                    <td>
-                                        <?php echo $course['FirstName'] ? htmlspecialchars($course['FirstName'] . ' ' . $course['LastName']) : '-'; ?>
-                                        <button type="button" class="btn btn-outline-primary btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#assignModal<?php echo $course['CourseID']; ?>">
-                                            <i class="fas fa-user-plus me-1"></i><?php echo $course['FirstName'] ? 'Reassign' : 'Assign'; ?>
+<!-- Courses Table -->
+<div class="card">
+    <div class="card-header bg-white">
+        <h5 class="mb-0"><i class="fas fa-list me-2"></i>All Courses</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Course Code</th>
+                        <th>Course Name</th>
+                        <th>Description</th>
+                        <th>Credits</th>
+                        <th>Department</th>
+                        <th>Academic Year</th>
+                        <th>Lecturer</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php while ($course = sqlsrv_fetch_array($courses_result, SQLSRV_FETCH_ASSOC)) { ?>
+                        <tr>
+                            <td><strong><?php echo htmlspecialchars($course['CourseCode']); ?></strong></td>
+                            <td><?php echo htmlspecialchars($course['CourseName']); ?></td>
+                            <td><?php echo htmlspecialchars($course['Description'] ?? 'No description'); ?></td>
+                            <td><?php echo htmlspecialchars($course['Credits']); ?></td>
+                            <td><?php echo htmlspecialchars($course['Department']); ?></td>
+                            <td><?php echo htmlspecialchars($course['YearName'] ?? $course['AcademicYearID']); ?></td>
+                            <td>
+                                <?php if ($course['FirstName']) { ?>
+                                    <span class="badge bg-info text-dark">
+                                        <?php echo htmlspecialchars($course['FirstName'] . ' ' . $course['LastName']); ?>
+                                    </span>
+                                <?php } else { ?>
+                                    <span class="text-muted">Not Assigned</span>
+                                <?php } ?>
+                                <button type="button" class="btn btn-outline-primary btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#assignModal<?php echo $course['CourseID']; ?>">
+                                    <i class="fas fa-user-<?php echo $course['FirstName'] ? 'edit' : 'plus'; ?> me-1"></i>
+                                    <?php echo $course['FirstName'] ? 'Reassign' : 'Assign'; ?>
+                                </button>
+                            </td>
+                            <td>
+                                <span class="badge bg-<?php echo $course['IsActive'] ? 'success' : 'secondary'; ?>">
+                                    <?php echo $course['IsActive'] ? 'Active' : 'Inactive'; ?>
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editCourseModal<?php echo $course['CourseID']; ?>">
+                                        <i class="fas fa-edit me-1"></i>Edit
+                                    </button>
+                                    <form method="POST" action="courses.php?username=<?php echo urlencode($username); ?>" style="display:inline;">
+                                        <input type="hidden" name="course_id" value="<?php echo $course['CourseID']; ?>">
+                                        <input type="hidden" name="new_status" value="<?php echo $course['IsActive'] ? 0 : 1; ?>">
+                                        <button type="submit" name="toggle_active" class="btn btn-outline-<?php echo $course['IsActive'] ? 'danger' : 'success'; ?> btn-sm" onclick="return confirm('Are you sure you want to <?php echo $course['IsActive'] ? 'deactivate' : 'activate'; ?> this course?');">
+                                            <i class="fas fa-<?php echo $course['IsActive'] ? 'times' : 'check'; ?> me-1"></i>
+                                            <?php echo $course['IsActive'] ? 'Deactivate' : 'Activate'; ?>
                                         </button>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-<?php echo $course['IsActive'] ? 'success' : 'secondary'; ?>">
-                                            <?php echo $course['IsActive'] ? 'Active' : 'Inactive'; ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editCourseModal<?php echo $course['CourseID']; ?>">
-                                            <i class="fas fa-edit me-1"></i>Edit
-                                        </button>
-                                        <form method="POST" action="courses.php?username=<?php echo urlencode($username); ?>" style="display:inline;">
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        
+                        <!-- Edit Course Modal -->
+                        <div class="modal fade" id="editCourseModal<?php echo $course['CourseID']; ?>" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Course</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <form method="POST" action="courses.php?username=<?php echo urlencode($username); ?>">
+                                        <div class="modal-body">
                                             <input type="hidden" name="course_id" value="<?php echo $course['CourseID']; ?>">
-                                            <input type="hidden" name="new_status" value="<?php echo $course['IsActive'] ? 0 : 1; ?>">
-                                            <button type="submit" name="toggle_active" class="btn btn-outline-<?php echo $course['IsActive'] ? 'danger' : 'success'; ?> btn-sm" onclick="return confirm('Are you sure you want to <?php echo $course['IsActive'] ? 'deactivate' : 'activate'; ?> this course?');">
-                                                <i class="fas fa-<?php echo $course['IsActive'] ? 'times' : 'check'; ?> me-1"></i><?php echo $course['IsActive'] ? 'Deactivate' : 'Activate'; ?>
+                                            <div class="mb-3">
+                                                <label class="form-label">Course Code <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control" name="course_code" value="<?php echo htmlspecialchars($course['CourseCode']); ?>" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Course Name <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control" name="course_name" value="<?php echo htmlspecialchars($course['CourseName']); ?>" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Description</label>
+                                                <textarea class="form-control" name="description" rows="3"><?php echo htmlspecialchars($course['Description'] ?? ''); ?></textarea>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Credits <span class="text-danger">*</span></label>
+                                                <input type="number" class="form-control" name="credits" value="<?php echo htmlspecialchars($course['Credits']); ?>" required min="1">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Department <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control" name="department" value="<?php echo htmlspecialchars($course['Department']); ?>" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Academic Year <span class="text-danger">*</span></label>
+                                                <select class="form-control" name="academic_year_id" required>
+                                                    <?php foreach ($academic_years as $year) { ?>
+                                                        <option value="<?php echo $year['AcademicYearID']; ?>" <?php echo $year['AcademicYearID'] == $course['AcademicYearID'] ? 'selected' : ''; ?>>
+                                                            <?php echo htmlspecialchars($year['YearName']); ?>
+                                                        </option>
+                                                    <?php } ?>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" name="update_course" class="btn btn-warning">Update Course</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Assign/Reassign Lecturer Modal -->
+                        <div class="modal fade" id="assignModal<?php echo $course['CourseID']; ?>" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">
+                                            <i class="fas fa-user-<?php echo $course['FirstName'] ? 'edit' : 'plus'; ?> me-2"></i>
+                                            <?php echo $course['FirstName'] ? 'Reassign' : 'Assign'; ?> Lecturer to <?php echo htmlspecialchars($course['CourseCode']); ?>
+                                        </h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <form method="POST" action="courses.php?username=<?php echo urlencode($username); ?>">
+                                        <div class="modal-body">
+                                            <input type="hidden" name="course_id" value="<?php echo $course['CourseID']; ?>">
+                                            <div class="mb-3">
+                                                <label class="form-label">Select Lecturer <span class="text-danger">*</span></label>
+                                                <select class="form-control" name="lecturer_id" required>
+                                                    <option value="">-- Select Lecturer --</option>
+                                                    <?php foreach ($lecturers as $lecturer) { ?>
+                                                        <option value="<?php echo $lecturer['LecturerID']; ?>" 
+                                                            <?php echo ($course['FirstName'] && $lecturer['FirstName'] == $course['FirstName'] && $lecturer['LastName'] == $course['LastName']) ? 'selected' : ''; ?>>
+                                                            <?php echo htmlspecialchars($lecturer['FirstName'] . ' ' . $lecturer['LastName']); ?>
+                                                        </option>
+                                                    <?php } ?>
+                                                </select>
+                                            </div>
+                                            <?php if ($course['FirstName']) { ?>
+                                                <div class="alert alert-info">
+                                                    <i class="fas fa-info-circle me-2"></i>
+                                                    Current lecturer: <strong><?php echo htmlspecialchars($course['FirstName'] . ' ' . $course['LastName']); ?></strong>
+                                                </div>
+                                            <?php } ?>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" name="assign_lecturer" class="btn btn-primary">
+                                                <?php echo $course['FirstName'] ? 'Reassign' : 'Assign'; ?> Lecturer
                                             </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                                <!-- Edit Course Modal -->
-                                <div class="modal fade" id="editCourseModal<?php echo $course['CourseID']; ?>" tabindex="-1" aria-labelledby="editCourseModalLabel<?php echo $course['CourseID']; ?>" aria-hidden="true">
-                                    <div class="modal-dialog">
-                                        <div class="modal-content">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title" id="editCourseModalLabel<?php echo $course['CourseID']; ?>">Edit Course</h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                            </div>
-                                            <form method="POST" action="courses.php?username=<?php echo urlencode($username); ?>">
-                                                <div class="modal-body">
-                                                    <input type="hidden" name="course_id" value="<?php echo $course['CourseID']; ?>">
-                                                    <div class="mb-3">
-                                                        <label for="courseCode<?php echo $course['CourseID']; ?>" class="form-label">Course Code</label>
-                                                        <input type="text" class="form-control" id="courseCode<?php echo $course['CourseID']; ?>" name="course_code" value="<?php echo htmlspecialchars($course['CourseCode']); ?>" required>
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label for="courseName<?php echo $course['CourseID']; ?>" class="form-label">Course Name</label>
-                                                        <input type="text" class="form-control" id="courseName<?php echo $course['CourseID']; ?>" name="course_name" value="<?php echo htmlspecialchars($course['CourseName']); ?>" required>
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label for="description<?php echo $course['CourseID']; ?>" class="form-label">Description</label>
-                                                        <textarea class="form-control" id="description<?php echo $course['CourseID']; ?>" name="description" rows="4"><?php echo htmlspecialchars($course['Description'] ?? ''); ?></textarea>
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label for="credits<?php echo $course['CourseID']; ?>" class="form-label">Credits</label>
-                                                        <input type="number" class="form-control" id="credits<?php echo $course['CourseID']; ?>" name="credits" value="<?php echo htmlspecialchars($course['Credits']); ?>" required min="1">
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label for="department<?php echo $course['CourseID']; ?>" class="form-label">Department</label>
-                                                        <input type="text" class="form-control" id="department<?php echo $course['CourseID']; ?>" name="department" value="<?php echo htmlspecialchars($course['Department']); ?>" required>
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label for="academicYear<?php echo $course['CourseID']; ?>" class="form-label">Academic Year</label>
-                                                        <select class="form-control" id="academicYear<?php echo $course['CourseID']; ?>" name="academic_year_id" required>
-                                                            <?php foreach ($academic_years as $year) { ?>
-                                                                <option value="<?php echo $year['AcademicYearID']; ?>" <?php echo $year['AcademicYearID'] == $course['AcademicYearID'] ? 'selected' : ''; ?>>
-                                                                    <?php echo htmlspecialchars($year['YearName']); ?>
-                                                                </option>
-                                                            <?php } ?>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                    <button type="submit" name="update_course" class="btn btn-warning">Update Course</button>
-                                                </div>
-                                            </form>
                                         </div>
-                                    </div>
+                                    </form>
                                 </div>
-                                <!-- Assign/Reassign Lecturer Modal -->
-                                <div class="modal fade" id="assignModal<?php echo $course['CourseID']; ?>" tabindex="-1" aria-labelledby="assignModalLabel<?php echo $course['CourseID']; ?>" aria-hidden="true">
-                                    <div class="modal-dialog">
-                                        <div class="modal-content">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title" id="assignModalLabel<?php echo $course['CourseID']; ?>"><?php echo $course['FirstName'] ? 'Reassign' : 'Assign'; ?> Lecturer to <?php echo htmlspecialchars($course['CourseCode']); ?></h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                            </div>
-                                            <form method="POST" action="courses.php?username=<?php echo urlencode($username); ?>">
-                                                <div class="modal-body">
-                                                    <input type="hidden" name="course_id" value="<?php echo $course['CourseID']; ?>">
-                                                    <div class="mb-3">
-                                                        <label for="lecturer<?php echo $course['CourseID']; ?>" class="form-label">Lecturer</label>
-                                                        <select class="form-control" id="lecturer<?php echo $course['CourseID']; ?>" name="lecturer_id" required>
-                                                            <?php foreach ($lecturers as $lecturer) { ?>
-                                                                <option value="<?php echo $lecturer['LecturerID']; ?>" <?php echo $course['FirstName'] && $lecturer['FirstName'] == $course['FirstName'] && $lecturer['LastName'] == $course['LastName'] ? 'selected' : ''; ?>>
-                                                                    <?php echo htmlspecialchars($lecturer['FirstName'] . ' ' . $lecturer['LastName']); ?>
-                                                                </option>
-                                                            <?php } ?>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                    <button type="submit" name="assign_lecturer" class="btn btn-primary"><?php echo $course['FirstName'] ? 'Reassign' : 'Assign'; ?> Lecturer</button>
-                                                </div>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php } ?>
-                            <?php if (sqlsrv_num_rows($courses_result) === 0) { ?>
-                                <tr><td colspan="9" class="text-center text-muted">No courses found.</td></tr>
-                            <?php } ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- Add Course Modal -->
-        <div class="modal fade" id="addCourseModal" tabindex="-1" aria-labelledby="addCourseModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="addCourseModalLabel">Add New Course</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <form method="POST" action="courses.php?username=<?php echo urlencode($username); ?>">
-                        <div class="modal-body">
-                            <div class="mb-3">
-                                <label for="courseCode" class="form-label">Course Code</label>
-                                <input type="text" class="form-control" id="courseCode" name="course_code" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="courseName" class="form-label">Course Name</label>
-                                <input type="text" class="form-control" id="courseName" name="course_name" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="description" class="form-label">Description</label>
-                                <textarea class="form-control" id="description" name="description" rows="4"></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label for="credits" class="form-label">Credits</label>
-                                <input type="number" class="form-control" id="credits" name="credits" required min="1">
-                            </div>
-                            <div class="mb-3">
-                                <label for="department" class="form-label">Department</label>
-                                <input type="text" class="form-control" id="department" name="department" required>
-                            </div>
-                            <div class="mb-3">
-                                <label for="academicYear" class="form-label">Academic Year</label>
-                                <select class="form-control" id="academicYear" name="academic_year_id" required>
-                                    <?php foreach ($academic_years as $year) { ?>
-                                        <option value="<?php echo $year['AcademicYearID']; ?>"><?php echo htmlspecialchars($year['YearName']); ?></option>
-                                    <?php } ?>
-                                </select>
                             </div>
                         </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" name="add_course" class="btn btn-success">Add Course</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+                    <?php } ?>
+                </tbody>
+            </table>
         </div>
     </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+<!-- Add Course Modal -->
+<div class="modal fade" id="addCourseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus-circle me-2"></i>Add New Course</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="courses.php?username=<?php echo urlencode($username); ?>">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Course Code <span class="text-danger">*</span></label>
+                        <input type="text"class="form-control" name="course_code" placeholder="e.g., CS101" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Course Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="course_name" placeholder="e.g., Introduction to Computer Science" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" name="description" rows="3" placeholder="Course description (optional)"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Credits <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" name="credits" placeholder="e.g., 3" required min="1">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Department <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="department" placeholder="e.g., Computer Science" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Academic Year <span class="text-danger">*</span></label>
+                        <select class="form-control" name="academic_year_id" required>
+                            <option value="">-- Select Academic Year --</option>
+                            <?php foreach ($academic_years as $year) { ?>
+                                <option value="<?php echo $year['AcademicYearID']; ?>">
+                                    <?php echo htmlspecialchars($year['YearName']); ?>
+                                </option>
+                            <?php } ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" name="add_course" class="btn btn-success">
+                        <i class="fas fa-plus-circle me-2"></i>Add Course
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <?php
+// Render footer
+renderFooter();
+
 // Clean up
 sqlsrv_free_stmt($courses_result);
 sqlsrv_free_stmt($admin_result);
