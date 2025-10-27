@@ -103,7 +103,7 @@
                         </a>
                     </div>
                     <div class="col-md-3">
-                        <a href="#" class="btn btn-danger w-100 py-3">
+                        <a href="http://localhost/php_module/courses.php?username={{ username }}" class="btn btn-danger w-100 py-3">
                             <i class="fas fa-book fa-2x mb-2 d-block"></i>Add Course
                         </a>
                     </div>
@@ -113,33 +113,27 @@
     </div>
 </div>
 
-<!-- Recent Activity & System Overview (abbreviated; add your full content here) -->
-<div class="row">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-white">
-                <h5 class="card-title mb-0">Recent Activity</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-unstyled">
-                    <li><small class="text-muted">User logged in - {{ username }} (Admin)</small></li>
-                    <li><small class="text-muted">Course updated - 2 minutes ago</small></li>
-                </ul>
+<!-- Pending Approvals Button -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card" style="animation: slideIn 1.0s ease-out;">
+            <div class="card-body text-center">
+                <a href="http://localhost/php_module/pending_approvals.php?username={{ username }}" class="btn btn-primary w-100 py-3">
+                    <i class="fas fa-clipboard-check fa-2x mb-2 d-block"></i>View Pending Approvals
+                </a>
             </div>
         </div>
     </div>
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-white">
-                <h5 class="card-title mb-0">System Status</h5>
-            </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <small class="text-muted">Uptime</small>
-                    <div class="progress">
-                        <div class="progress-bar bg-success" style="width: 95%"></div>
-                    </div>
-                </div>
+</div>
+
+<!-- Academic Year/Semester Management Button -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card" style="animation: slideIn 1.1s ease-out;">
+            <div class="card-body text-center">
+                <a href="http://localhost/php_module/semesters.php?username={{ username }}" class="btn btn-info w-100 py-3">
+                    <i class="fas fa-calendar-alt fa-2x mb-2 d-block"></i>Academic Year/Semester Management
+                </a>
             </div>
         </div>
     </div>

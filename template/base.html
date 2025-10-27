@@ -92,20 +92,38 @@
                     <h6 class="text-white px-3 mb-3">ADMIN PANEL</h6>
                     <ul class="nav flex-column">
                         <li class="nav-item">
-                            <a class="nav-link active" href="{% url 'admin_dashboard' %}">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}" href="{% url 'admin_dashboard' %}">
                                 <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                             </a>
                         </li>
                         <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-users me-2"></i>Users</a></li>
                         <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-graduation-cap me-2"></i>Students</a></li>
                         <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-chalkboard-teacher me-2"></i>Lecturers</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-book me-2"></i>Courses</a></li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="http://localhost/php_module/courses.php?username={{ username }}">
+                                <i class="fas fa-book me-2"></i>Courses
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="http://localhost/php_module/pending_approvals.php?username={{ username }}">
+                                <i class="fas fa-clipboard-check me-2"></i>Pending Approvals
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="http://localhost/php_module/semesters.php?username={{ username }}">
+                                <i class="fas fa-calendar-alt me-2"></i>Semesters
+                            </a>
+                        </li>
                     </ul>
 
                     {% elif user_role == 'lecturer' %}
                     <h6 class="text-white px-3 mb-3">LECTURER PANEL</h6>
                     <ul class="nav flex-column">
-                        <li class="nav-item"><a class="nav-link active" href="{% url 'lecturer_dashboard' %}"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a></li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'lecturer_dashboard' %}active{% endif %}" href="{% url 'lecturer_dashboard' %}">
+                                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                            </a>
+                        </li>
                         <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-book me-2"></i>My Courses</a></li>
                         <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-calendar-check me-2"></i>Attendance</a></li>
                         <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-chart-bar me-2"></i>Reports</a></li>
@@ -114,8 +132,16 @@
                     {% elif user_role == 'student' %}
                     <h6 class="text-white px-3 mb-3">STUDENT PANEL</h6>
                     <ul class="nav flex-column">
-                        <li class="nav-item"><a class="nav-link active" href="{% url 'student_dashboard' %}"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-book me-2"></i>My Courses</a></li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}" href="{% url 'student_dashboard' %}">
+                                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="http://localhost/php_module/enrol.php?username={{ username }}">
+                                <i class="fas fa-book me-2"></i>My Courses
+                            </a>
+                        </li>
                         <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-history me-2"></i>Attendance</a></li>
                         <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-chart-line me-2"></i>Progress</a></li>
                     </ul>

@@ -57,18 +57,39 @@
         <div class="card">
             <div class="card-header">
                 <h5>My Schedule & Attendance</h5>
+                <a href="http://localhost/php_module/enrol.php?username={{ username }}" class="btn btn-outline-success btn-sm float-end">
+                    <i class="fas fa-plus-circle me-2"></i>Enroll in a Course
+                </a>
             </div>
             <div class="card-body">
-                <p>Your schedule will appear here.</p>
+                <p>Your enrolled courses and schedule.</p>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
-                            <tr><th>Course</th><th>Date</th><th>Status</th></tr>
+                            <tr><th>Course Code</th><th>Course Name</th><th>Enrollment Date</th><th>Status</th></tr>
                         </thead>
                         <tbody>
-                            <tr><td>Math 101</td><td>Oct 22, 2025</td><td><span class="badge bg-success">Present</span></td></tr>
-                            <tr><td>English Lit</td><td>Oct 23, 2025</td><td><span class="badge bg-warning">Pending</span></td></tr>
-                            <tr><td colspan="3" class="text-center text-muted">No more classes.</td></tr>
+                            {% for course in enrolled_courses %}
+                                <tr>
+                                    <td>{{ course.CourseCode }}</td>
+                                    <td>{{ course.CourseName }}</td>
+                                    <td>{{ course.EnrollmentDate|date:"M d, Y" }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if course.Status == 'Active' %}success{% elif course.Status == 'Pending Enroll' %}warning{% elif course.Status == 'Pending Drop' %}danger{% else %}secondary{% endif %}">
+                                            {{ course.Status }}
+                                            {% if course.Status == 'Active' and course.DropRejectionReason %}
+                                                <small>(Drop Rejected: {{ course.DropRejectionReason }})</small>
+                                            {% elif course.Status == 'Rejected' and course.RejectionReason %}
+                                                <small>({{ course.RejectionReason }})</small>
+                                            {% elif course.Status == 'Dropped' %}
+                                                <small>(Dropped)</small>
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="4" class="text-center text-muted">No enrolled courses.</td></tr>
+                            {% endfor %}
                         </tbody>
                     </table>
                 </div>

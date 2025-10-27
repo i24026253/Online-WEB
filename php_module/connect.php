@@ -16,9 +16,9 @@ $conn = sqlsrv_connect($serverName, $connectionOptions);
 
 // Check connection
 if ($conn) {
-    echo "<p style='color:green;'>✅ PHP connected to SQL Server successfully!</p>";
+    error_log("✅ PHP connected to SQL Server successfully!\n");
 } else {
-    echo "<p style='color:red;'>❌ Connection failed!</p>";
-    die(print_r(sqlsrv_errors(), true));
+    error_log("❌ Connection failed!\n");
+    error_log(print_r(sqlsrv_errors(), true) . "\n");
 }
 ?>
