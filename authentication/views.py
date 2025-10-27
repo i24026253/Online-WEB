@@ -12,8 +12,8 @@ def login_view(request):
         try:
             conn = pyodbc.connect(
                 'DRIVER={ODBC Driver 17 for SQL Server};'
-                'SERVER=LAPTOP-8O7OUMB4;'
-                'DATABASE=WebGrpData;'
+                'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
+                'DATABASE=Attendance;'
                 'Trusted_Connection=yes;'
             )
             cursor = conn.cursor()
@@ -94,8 +94,8 @@ def admin_dashboard(request):
     try:
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=LAPTOP-8O7OUMB4;'
-            'DATABASE=WebGrpData;'
+            'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
+            'DATABASE=Attendance;'
             'Trusted_Connection=yes;'
         )
         cursor = conn.cursor()
@@ -138,8 +138,8 @@ def lecturer_dashboard(request):
     try:
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=LAPTOP-8O7OUMB4;'
-            'DATABASE=WebGrpData;'
+            'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
+            'DATABASE=Attendance;'
             'Trusted_Connection=yes;'
         )
         cursor = conn.cursor()
@@ -185,8 +185,8 @@ def student_dashboard(request):
         # Connect to the database
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=LAPTOP-8O7OUMB4;'
-            'DATABASE=WebGrpData;'
+            'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
+            'DATABASE=Attendance;'
             'Trusted_Connection=yes;'
         )
         cursor = conn.cursor()
