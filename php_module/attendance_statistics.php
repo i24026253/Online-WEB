@@ -55,20 +55,18 @@ if ($user_role === 'student' && $student_id) {
                         c.CourseID,
                         c.CourseCode,
                         c.CourseName,
-                        COUNT(DISTINCT s.SessionID) as TotalSessions,
+                        COUNT(DISTINCT ats.SessionID) as TotalSessions,
                         SUM(CASE WHEN ar.Status = 'Present' THEN 1 ELSE 0 END) as PresentCount,
                         SUM(CASE WHEN ar.Status = 'Absent' THEN 1 ELSE 0 END) as AbsentCount,
-                        SUM(CASE WHEN ar.Status = 'Late' THEN 1 ELSE 0 END) as LateCount,
-                        SUM(CASE WHEN ar.Status = 'Excused' THEN 1 ELSE 0 END) as ExcusedCount,
                         CASE 
                             WHEN COUNT(ar.AttendanceID) > 0 
-                            THEN CAST(ROUND((CAST(SUM(CASE WHEN ar.Status IN ('Present', 'Late') THEN 1 ELSE 0 END) AS FLOAT) / COUNT(ar.AttendanceID)) * 100, 1) AS DECIMAL(5,1))
+                            THEN CAST(ROUND((CAST(SUM(CASE WHEN ar.Status = 'Present' THEN 1 ELSE 0 END) AS FLOAT) / COUNT(ar.AttendanceID)) * 100, 1) AS DECIMAL(5,1))
                             ELSE 0 
                         END as AttendancePercentage
                     FROM dbo.Courses c
                     JOIN dbo.Enrollments e ON c.CourseID = e.CourseID
-                    LEFT JOIN dbo.Attendance_Sessions s ON c.CourseID = s.CourseID
-                    LEFT JOIN dbo.Attendance_Records ar ON s.SessionID = ar.SessionID AND ar.StudentID = e.StudentID
+                    LEFT JOIN dbo.Attendance_Sessions ats ON c.CourseID = ats.CourseID
+                    LEFT JOIN dbo.Attendance_Records ar ON ats.SessionID = ar.SessionID AND ar.StudentID = e.StudentID
                     WHERE e.StudentID = ? AND e.Status = 'Active'";
     $stats_params = array($student_id);
     

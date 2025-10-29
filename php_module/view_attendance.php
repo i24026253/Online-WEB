@@ -40,6 +40,7 @@ $lecturer_id = $user_row['LecturerID'];
 $course_filter = isset($_GET['course_id']) ? (int)$_GET['course_id'] : null;
 $date_from = isset($_GET['date_from']) ? $_GET['date_from'] : null;
 $date_to = isset($_GET['date_to']) ? $_GET['date_to'] : null;
+$student_id_filter = isset($_GET['student_id']) ? (int)$_GET['student_id'] : null;
 
 // Build query based on user role
 if ($user_role === 'student') {

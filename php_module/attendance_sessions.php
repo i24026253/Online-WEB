@@ -147,8 +147,11 @@ renderHeader($username, $user_role, 'attendance');
 ?>
 
 <!-- Page Content Starts Here -->
-<div class="mb-4">
+<div class="mb-4 d-flex justify-content-between align-items-center">
     <h1 class="h2"><i class="fas fa-calendar-alt me-2"></i>Attendance Sessions</h1>
+    <a href="lecturer_dashboard.php?username=<?php echo urlencode($username); ?>" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+    </a>
 </div>
 
 <!-- Display messages -->
