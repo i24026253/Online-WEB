@@ -1,3 +1,5 @@
+<!-- lecturer_dashboard -->
+
 {% extends 'base.html' %}
 
 {% block title %}Lecturer Dashboard - Attendance System{% endblock %}
@@ -56,15 +58,40 @@
     </div>
 </div>
 
+<!-- ✨ Course Statistics -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Course Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="stat-box p-3 bg-light rounded text-center">
+                            <h6 class="text-muted">Average attendance rate</h6>
+                            <h3 class="text-info">{{ avg_attendance|default:0 }}%</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="stat-box p-3 bg-light rounded text-center">
+                            <h6 class="text-muted">Number of registered students</h6>
+                            <h3 class="text-info">{{ enrolled_students|default:0 }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <canvas id="statsChart" width="400" height="150"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Upcoming Sessions -->
 <div class="row">
     <div class="col-12">
         <div class="card">
             <div class="card-header">
                 <h5>Upcoming Sessions</h5>
-                <a href="http://localhost/php_module/test_php.php" target="_blank" class="btn btn-outline-success btn-sm float-end">
-    <i class="fas fa-file-alt me-1"></i> Open PHP Report
-</a>
             </div>
             <div class="card-body">
                 <p>Your upcoming sessions will appear here.</p>
@@ -83,4 +110,48 @@
         </div>
     </div>
 </div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var ctx = document.getElementById('statsChart');
+        if (ctx) {
+            var avgAttendance = parseFloat('{{ avg_attendance|default:"0" }}') || 0;
+            
+            new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['Average attendance rate'],
+                    datasets: [{
+                        label: 'percentage',
+                        data: [avgAttendance],
+                        backgroundColor: '#3498db',
+                        borderColor: '#2980b9',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}

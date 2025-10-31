@@ -1,3 +1,5 @@
+<!-- student_dashboard -->
+
 {% extends 'base.html' %}
 
 {% block title %}Student Dashboard - Attendance System{% endblock %}
@@ -36,7 +38,7 @@
             <div class="card-body text-center">
                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
                 <h5>{{ average_attendance|default:0 }}%</h5>
-                <p class="text-muted">Attendance Rate</p>
+                <p class="text-muted">Overall Attendance Rate</p>
             </div>
         </div>
     </div>
@@ -44,8 +46,65 @@
         <div class="card stat-card card-info h-100">
             <div class="card-body text-center">
                 <i class="fas fa-calendar fa-3x text-info mb-3"></i>
-                <h5>{{ classes_attended|default:0 }}</h5>
-                <p class="text-muted">Classes Attended</p>
+                <h5>{{ classes_attended }} / {{ total_classes }}</h5>
+                <p class="text-muted">Attended / Total Classes</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance statistics chart -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>My attendance statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Overall attendance rate</h6>
+                        <h2 class="text-primary">{{ attendance_percentage|default:0 }}%</h2>
+                        <canvas id="attendanceChart" width="400" height="200"></canvas>
+                    </div>
+                    <div class="col-md-6"> 
+                        <h6>Attendance rate by course</h6>
+                        <canvas id="courseAttendanceChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-md-12">
+                        <h6>Attendance rate of each course</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Course</th>
+                                        <th>Attendance</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for course in enrolled_courses %}
+                                        {% if course.Status == 'Active' %}
+                                        <tr>
+                                            <td>{{ course.CourseName }}</td>
+                                            <td>
+                                                <span class="badge {% if course.percentage >= 75 %}bg-success{% elif course.percentage >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                                    {{ course.percentage|default:0 }}%
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="2" class="text-muted text-center">No course data available.</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -56,13 +115,13 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h5>My Schedule & Attendance</h5>
-                <a href="http://localhost/php_module/enrol.php?username={{ username }}" class="btn btn-outline-success btn-sm float-end">
+                <h5>Enrolled Courses</h5>
+                <a href="http://localhost:8080/php_module/enrol.php?username={{ username }}" class="btn btn-outline-success btn-sm float-end">
                     <i class="fas fa-plus-circle me-2"></i>Enroll in a Course
                 </a>
             </div>
             <div class="card-body">
-                <p>Your enrolled courses and schedule.</p>
+                <p>Your enrolled courses.</p>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -76,14 +135,7 @@
                                     <td>{{ course.EnrollmentDate|date:"M d, Y" }}</td>
                                     <td>
                                         <span class="badge bg-{% if course.Status == 'Active' %}success{% elif course.Status == 'Pending Enroll' %}warning{% elif course.Status == 'Pending Drop' %}danger{% else %}secondary{% endif %}">
-                                            {{ course.Status }}
-                                            {% if course.Status == 'Active' and course.DropRejectionReason %}
-                                                <small>(Drop Rejected: {{ course.DropRejectionReason }})</small>
-                                            {% elif course.Status == 'Rejected' and course.RejectionReason %}
-                                                <small>({{ course.RejectionReason }})</small>
-                                            {% elif course.Status == 'Dropped' %}
-                                                <small>(Dropped)</small>
-                                            {% endif %}
+                                           {{ course.Status }}    
                                         </span>
                                     </td>
                                 </tr>
@@ -97,4 +149,122 @@
         </div>
     </div>
 </div>
+
+<!-- Hidden data for JavaScript -->
+<div id="course-data" style="display: none;">
+{% for course in enrolled_courses %}
+    {% if course.Status == 'Active' %}
+    <span class="course-item" 
+          data-name="{{ course.CourseName }}" 
+          data-percentage="{{ course.percentage|default:0 }}"></span>
+    {% endif %}
+{% endfor %}
+</div>
+
+<!-- Chart.js Script -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Overall Attendance Doughnut Chart
+        var ctx = document.getElementById('attendanceChart');
+        if (ctx) {
+            var percentage = parseFloat('{{ attendance_percentage|default:"0" }}') || 0;
+            
+            new Chart(ctx.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Attendance', 'Absence'],
+                    datasets: [{
+                        data: [percentage, 100 - percentage],
+                        backgroundColor: ['#27ae60', '#e74c3c'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.parsed + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Course Attendance Bar Chart
+        var courseCtx = document.getElementById('courseAttendanceChart');
+        if (courseCtx) {
+            var courseLabels = [];
+            var coursePercentages = [];
+            
+            // Read data from hidden div
+            var courseItems = document.querySelectorAll('.course-item');
+            courseItems.forEach(function(item) {
+                var name = item.getAttribute('data-name');
+                var percentage = parseFloat(item.getAttribute('data-percentage')) || 0;
+                
+                // Truncate long names
+                if (name.length > 20) {
+                    name = name.substring(0, 17) + '...';
+                }
+                
+                courseLabels.push(name);
+                coursePercentages.push(percentage);
+            });
+            
+            var backgroundColors = coursePercentages.map(function(perc) {
+                if (perc >= 90) return '#27ae60';  
+                else if (perc >= 75) return '#f39c12';  
+                else return '#e74c3c';  
+            });
+
+            new Chart(courseCtx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: courseLabels,
+                    datasets: [{
+                        label: 'Attendance Rate (%)',
+                        data: coursePercentages,
+                        backgroundColor: backgroundColors,
+                        borderColor: '#2c3e50',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) { 
+                                    return value + '%'; 
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { 
+                            display: false 
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.parsed.y + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}

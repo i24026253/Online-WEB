@@ -9,7 +9,14 @@
     </h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary">Export Report</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                Export Report
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="javascript:exportReport('pdf')">PDF</a></li>
+                <li><a class="dropdown-item" href="javascript:exportReport('excel')">Excel</a></li>
+                <li><a class="dropdown-item" href="javascript:exportReport('csv')">CSV</a></li>
+            </ul>
         </div>
     </div>
 </div>
@@ -78,6 +85,68 @@
     </div>
 </div>
 
+<!-- ✨ Global Statistics -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-globe me-2"></i>System statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="stat-box p-3 bg-light rounded text-center">
+                            <h6 class="text-muted">System average attendance rate</h6>
+                            <h3 class="text-success">{{ system_avg_attendance|default:0 }}%</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-box p-3 bg-light rounded text-center">
+                            <h6 class="text-muted">Total number of students</h6>
+                            <h3 class="text-success">{{ total_students|default:0 }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-box p-3 bg-light rounded text-center">
+                            <h6 class="text-muted">Total number of courses</h6>
+                            <h3 class="text-success">{{ total_courses|default:0 }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <canvas id="overallChart" width="400" height="150"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ✨ Low Attendance Alert -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Low attendance alert</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for alert in low_alerts %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>
+                            <strong>{{ alert.student_name }}</strong> in 
+                            <em>{{ alert.CourseName }}</em>
+                        </span>
+                        <span class="badge bg-danger rounded-pill">{{ alert.percentage|floatformat:2 }}%</span>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-muted text-center">
+                        <i class="fas fa-check-circle me-2"></i>No low attendance alerts
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Quick Actions -->
 <div class="row mb-4">
     <div class="col-12">
@@ -103,7 +172,7 @@
                         </a>
                     </div>
                     <div class="col-md-3">
-                        <a href="http://localhost/php_module/courses.php?username={{ username }}" class="btn btn-danger w-100 py-3">
+                        <a href="http://localhost:8080/php_module/courses.php?username={{ username }}" class="btn btn-danger w-100 py-3">
                             <i class="fas fa-book fa-2x mb-2 d-block"></i>Add Course
                         </a>
                     </div>
@@ -118,7 +187,7 @@
     <div class="col-12">
         <div class="card" style="animation: slideIn 1.0s ease-out;">
             <div class="card-body text-center">
-                <a href="http://localhost/php_module/pending_approvals.php?username={{ username }}" class="btn btn-primary w-100 py-3">
+                <a href="http://localhost:8080/php_module/pending_approvals.php?username={{ username }}" class="btn btn-primary w-100 py-3">
                     <i class="fas fa-clipboard-check fa-2x mb-2 d-block"></i>View Pending Approvals
                 </a>
             </div>
@@ -131,13 +200,61 @@
     <div class="col-12">
         <div class="card" style="animation: slideIn 1.1s ease-out;">
             <div class="card-body text-center">
-                <a href="http://localhost/php_module/semesters.php?username={{ username }}" class="btn btn-info w-100 py-3">
+                <a href="http://localhost:8080/php_module/semesters.php?username={{ username }}" class="btn btn-info w-100 py-3">
                     <i class="fas fa-calendar-alt fa-2x mb-2 d-block"></i>Academic Year/Semester Management
                 </a>
             </div>
         </div>
     </div>
 </div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var ctx = document.getElementById('overallChart');
+        if (ctx) {
+            var systemAvgAttendance = parseFloat('{{ system_avg_attendance|default:"0" }}') || 0;
+            
+            new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: ['System average attendance rate'],
+                    datasets: [{
+                        label: 'Percentage',
+                        data: [systemAvgAttendance],
+                        borderColor: '#2c3e50',
+                        backgroundColor: 'rgba(44, 62, 80, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+
+    function exportReport(format) {
+        const period = 'monthly';
+        const url = `http://localhost:8080/php_module/export.php?format=${format}&period=${period}`;
+        window.location.href = url;
+    }
+    
+</script>
 
 <style>
 @keyframes slideIn {
