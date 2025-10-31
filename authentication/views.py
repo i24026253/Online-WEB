@@ -93,8 +93,6 @@ def admin_dashboard(request):
     total_courses = 0
     pending_enrollments = 0
     recent_attendance_records = []
-    
-    # ✨ NEW: Data for visualizations
     lecturers_per_course = []
     students_per_course = []
     
@@ -124,7 +122,6 @@ def admin_dashboard(request):
         cursor.execute("SELECT COUNT(*) FROM dbo.Enrollments WHERE Status IN ('Pending Enroll', 'Pending Drop')")
         pending_enrollments = cursor.fetchone()[0]
         
-        # ✨ NEW: Get lecturers responsible for each course
         cursor.execute("""
             SELECT TOP 10
                 c.CourseCode,
@@ -146,7 +143,7 @@ def admin_dashboard(request):
                 'lecturer': row.lecturer_name
             })
         
-        # ✨ Get students per course
+        # ✨ Students per course
         cursor.execute("""
             SELECT TOP 10
                 c.CourseCode,
@@ -166,7 +163,7 @@ def admin_dashboard(request):
                 'count': row.student_count or 0
             })
         
-        # ✨ FIXED: Get recent attendance records (last 10 records)
+        # ✨ Recent attendance records (last 10 records)
         cursor.execute("""
             SELECT TOP 10
                 s.StudentNumber,
@@ -377,6 +374,7 @@ def lecturer_dashboard(request):
 
 
 # 🔹 STUDENT DASHBOARD 
+# 🔹 STUDENT DASHBOARD - ✅ IMPROVED ALERT LOGIC
 def student_dashboard(request):
     username = request.session.get('username') or request.GET.get('username', 'Unknown')
     role = request.session.get('role', 'unknown')
@@ -387,7 +385,7 @@ def student_dashboard(request):
     enrolled_courses = []
     student_id = None
     overall_attendance_rate = 0
-    low_attendance_alerts = []  # ✅ NEW: Store alerts
+    low_attendance_alerts = [] 
     
     try:
         conn = pyodbc.connect(
@@ -412,6 +410,32 @@ def student_dashboard(request):
             return redirect('login')
         
         student_id, first_name, last_name = student_data
+        
+        # ✅ Fetch UNREAD alerts for student
+        cursor.execute("""
+            SELECT 
+                a.AlertID,
+                a.AlertType,
+                a.Message,
+                a.CreatedDate,
+                c.CourseName,
+                c.CourseCode
+            FROM dbo.Alerts a
+            LEFT JOIN dbo.Courses c ON a.CourseID = c.CourseID
+            WHERE a.StudentID = ? 
+            AND a.IsRead = 0
+            ORDER BY a.CreatedDate DESC
+        """, (student_id,))
+        
+        for row in cursor.fetchall():
+            low_attendance_alerts.append({
+                'alert_id': row.AlertID,
+                'alert_type': row.AlertType,
+                'message': row.Message,
+                'created_date': row.CreatedDate,
+                'course_name': row.CourseName,
+                'course_code': row.CourseCode
+            })
         
         # Fetch enrolled courses
         cursor.execute("""
@@ -455,14 +479,6 @@ def student_dashboard(request):
                         percentage = resp.json().get('percentage', 0)
                         course['percentage'] = percentage
                         active_course_percentages.append(percentage)
-                        
-                        # ✅ NEW: Check if attendance is below 75%
-                        if percentage < 75:
-                            low_attendance_alerts.append({
-                                'course_name': course['CourseName'],
-                                'course_code': course['CourseCode'],
-                                'percentage': percentage
-                            })
                     else:
                         course['percentage'] = 0
                 except Exception as e:
@@ -482,15 +498,15 @@ def student_dashboard(request):
         'username': username,
         'first_name': first_name,
         'last_name': last_name,
+        'student_id': student_id,  
         'dashboard_title': f"<i class='fas fa-tachometer-alt me-2'></i>Student Dashboard - Welcome, {first_name} {last_name}!",
         'total_courses': total_courses,
         'overall_attendance_rate': overall_attendance_rate,
         'enrolled_courses': enrolled_courses,
-        'low_attendance_alerts': low_attendance_alerts,  # ✅ NEW: Pass alerts to template
+        'low_attendance_alerts': low_attendance_alerts,  
     }
     
     return render(request, 'dashboard/student_dashboard.html', context)
-
 
 
 
@@ -534,9 +550,9 @@ def reports_view(request):
             row = cursor.fetchone()
             if row:
                 lecturer_id = row[0]
-                print(f"✅ Found LecturerID: {lecturer_id} for {username}")  # Debug
+                print(f"✅ Found LecturerID: {lecturer_id} for {username}") 
             else:
-                print(f"❌ No LecturerID found for {username}")  # Debug
+                print(f"❌ No LecturerID found for {username}") 
             conn.close()
         except Exception as e:
             print(f"Error fetching lecturer ID: {e}")
@@ -629,7 +645,7 @@ def reports_view(request):
             url += f'&student_number={student_number}'
         if lecturer_id and role == 'lecturer':
             url += f'&lecturer_id={lecturer_id}'
-            print(f"✅ Added lecturer_id to URL: {lecturer_id}")  # Debug
+            print(f"✅ Added lecturer_id to URL: {lecturer_id}") 
         
         print(f"Fetching report from: {url}")  
         
@@ -655,7 +671,7 @@ def reports_view(request):
         'student_id': student_id,
         'student_number': student_number,  
         'available_courses': available_courses,
-        'lecturer_id': lecturer_id,  # ✅ CRITICAL FIX: Add this line!
+        'lecturer_id': lecturer_id,  
     }
     
     return render(request, 'dashboard/reports.html', context)

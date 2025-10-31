@@ -1,8 +1,5 @@
 <?php
-/**
- * test_alert_system.php
- * Quick test script to verify alert system is working
- */
+/* TO verify alert system is working */
 
 require_once 'connect.php';
 require_once 'alert_generator.php';
@@ -23,7 +20,7 @@ require_once 'alert_generator.php';
             <div class="col-md-8 mx-auto">
                 <h1 class="mb-4"><i class="fas fa-vial me-2"></i>Alert System Test</h1>
                 
-                <!-- Test 1: Connection -->
+                <!--check Connection -->
                 <div class="card mb-3">
                     <div class="card-header bg-primary text-white">
                         <h5 class="mb-0"><i class="fas fa-database me-2"></i>1. Database Connection</h5>
@@ -39,7 +36,7 @@ require_once 'alert_generator.php';
                     </div>
                 </div>
 
-                <!-- Test 2: Check Alerts Table -->
+                <!--Check Alerts Table -->
                 <div class="card mb-3">
                     <div class="card-header bg-info text-white">
                         <h5 class="mb-0"><i class="fas fa-table me-2"></i>2. Alerts Table Check</h5>
@@ -59,7 +56,7 @@ require_once 'alert_generator.php';
                     </div>
                 </div>
 
-                <!-- Test 3: Check Low Attendance Students -->
+                <!--Check Low Attendance Students -->
                 <div class="card mb-3">
                     <div class="card-header bg-warning text-dark">
                         <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>3. Low Attendance Students</h5>
@@ -127,7 +124,7 @@ require_once 'alert_generator.php';
                     </div>
                 </div>
 
-                <!-- Test 4: Generate Alerts Button -->
+                <!--Generate Alerts Button -->
                 <div class="card mb-3">
                     <div class="card-header bg-success text-white">
                         <h5 class="mb-0"><i class="fas fa-bell me-2"></i>4. Generate Alerts</h5>
@@ -141,7 +138,7 @@ require_once 'alert_generator.php';
                     </div>
                 </div>
 
-                <!-- Test 5: View Current Alerts -->
+                <!--View Current Alerts -->
                 <div class="card mb-3">
                     <div class="card-header bg-danger text-white">
                         <h5 class="mb-0"><i class="fas fa-list me-2"></i>5. Current Alerts</h5>

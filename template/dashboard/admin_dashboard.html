@@ -8,9 +8,6 @@
     </h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
-            <!--<button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="fas fa-download me-1"></i>Export Report
-            </button-->
             <ul class="dropdown-menu">
                 <li><a class="dropdown-item" href="javascript:exportReport('pdf')"><i class="fas fa-file-pdf me-2"></i>PDF</a></li>
                 <li><a class="dropdown-item" href="javascript:exportReport('excel')"><i class="fas fa-file-excel me-2"></i>Excel</a></li>
@@ -101,7 +98,7 @@
 </div>
 {% endif %}
 
-<!-- Visualization Charts -->
+<!-- Visualization -->
 <div class="row mb-4">
     <!-- Students per Course Chart -->
     <div class="col-md-6 mb-4">
@@ -210,51 +207,6 @@
                     <p class="text-muted mb-0">No recent attendance records</p>
                 </div>
                 {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Management Links -->
-<div class="row">
-    <div class="col-md-4 mb-4">
-        <div class="card" style="animation: slideIn 1.0s ease-out;">
-            <div class="card-body text-center">
-                <i class="fas fa-clipboard-check fa-3x text-primary mb-3"></i>
-                <h5 class="card-title">Pending Approvals</h5>
-                <p class="text-muted">Review enrollment/drop requests</p>
-                <a href="http://localhost:8080/php_module/pending_approvals.php?username={{ username }}" class="btn btn-primary">
-                    <i class="fas fa-clipboard-check me-2"></i>View Approvals
-                    {% if pending_enrollments > 0 %}
-                        <span class="badge bg-danger ms-2">{{ pending_enrollments }}</span>
-                    {% endif %}
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-4 mb-4">
-        <div class="card" style="animation: slideIn 1.1s ease-out;">
-            <div class="card-body text-center">
-                <i class="fas fa-calendar-alt fa-3x text-info mb-3"></i>
-                <h5 class="card-title">Academic Years</h5>
-                <p class="text-muted">Manage semesters</p>
-                <a href="http://localhost:8080/php_module/semesters.php?username={{ username }}" class="btn btn-info">
-                    <i class="fas fa-calendar-alt me-2"></i>Manage Semesters
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-4 mb-4">
-        <div class="card" style="animation: slideIn 1.2s ease-out;">
-            <div class="card-body text-center">
-                <i class="fas fa-book fa-3x text-success mb-3"></i>
-                <h5 class="card-title">Courses</h5>
-                <p class="text-muted">Manage all courses</p>
-                <a href="http://localhost:8080/php_module/courses.php?username={{ username }}" class="btn btn-success">
-                    <i class="fas fa-book me-2"></i>Manage Courses
-                </a>
             </div>
         </div>
     </div>

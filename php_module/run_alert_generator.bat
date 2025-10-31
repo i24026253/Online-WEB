@@ -24,5 +24,5 @@ if %errorlevel% equ 0 (
 ) else (
     echo Error: Alert generation failed with code %errorlevel% >> %LOG_PATH%
 )
-
+ 
 echo. >> %LOG_PATH%

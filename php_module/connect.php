@@ -21,4 +21,4 @@ if ($conn) {
     error_log("❌ Connection failed!\n");
     error_log(print_r(sqlsrv_errors(), true) . "\n");
 }
-?>
+?> 

@@ -9,9 +9,8 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Writer\Csv;
 
-/**
- * Generate report data with student name display
- */
+
+/* Generate report data with student name display */
 function generateReportData($conn, $period, $startDate, $endDate, $courseId = null, $studentId = null, $lecturerId = null, $studentNumber = null) {
     $query = "
         SELECT
@@ -32,7 +31,7 @@ function generateReportData($conn, $period, $startDate, $endDate, $courseId = nu
     
     $params = [];
     
-    // ✅ FIXED: Date filtering for monthly period - same fix as reports.php
+    // Date filtering for monthly period - same fix as reports.php
     if ($period === 'monthly' && $startDate) {
         // Extract year and month from the date
         if (strlen($startDate) == 7) {
@@ -360,7 +359,7 @@ if (isset($_GET['format']) && isset($_GET['period'])) {
     $lecturerId = isset($_GET['lecturer_id']) && $_GET['lecturer_id'] !== '' ? (int)$_GET['lecturer_id'] : null;
     $studentNumber = isset($_GET['student_number']) && $_GET['student_number'] !== '' ? $_GET['student_number'] : null;
   
-    // Get course name for display
+    // Course name for display
     $courseFilter = '';
     if ($courseId) {
         $courseQuery = "SELECT CourseCode, CourseName FROM dbo.Courses WHERE CourseID = ?";
@@ -374,7 +373,7 @@ if (isset($_GET['format']) && isset($_GET['period'])) {
         }
     }
     
-    // Get student name for display
+    // Student name for display
     $studentFilter = '';
     if ($studentNumber) {
         $studentQuery = "SELECT u.FirstName, u.LastName, s.StudentNumber 

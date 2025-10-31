@@ -73,7 +73,7 @@ function getLowAttendanceAlerts($conn, $threshold = 75) {
     return $alerts;
 }
 
-// API interface: returns JSON based on GET parameters
+// API interface
 if (basename(__FILE__) == basename($_SERVER['SCRIPT_FILENAME'])) {
     header('Content-Type: application/json');
     if (isset($_GET['action'])) {

@@ -1,18 +1,15 @@
 <?php
-/**
- * alert_generator.php
- * Automatically generates alerts for students with low attendance
- * This can be run as a cron job or called manually
- */
+
+ /* Automatically generates alerts for students with low attendance*/
 
 require_once 'connect.php';
 
 // Configuration
 $LOW_ATTENDANCE_THRESHOLD = 75; // Alert if attendance falls below 75%
 
-/**
- * Generate low attendance alerts for all students
- */
+
+ /* Generate low attendance alerts for all students*/
+
 function generateLowAttendanceAlerts($conn, $threshold = 75) {
     // Find students with low attendance per course
     $query = "
@@ -87,7 +84,7 @@ function generateLowAttendanceAlerts($conn, $threshold = 75) {
             
             sqlsrv_free_stmt($checkStmt);
         } else {
-            // Create new alert
+            // New alert
             $insertQuery = "
                 INSERT INTO dbo.Alerts (StudentID, CourseID, AlertType, Message, IsRead, CreatedDate)
                 VALUES (?, ?, 'Low Attendance', ?, 0, GETDATE())
@@ -113,9 +110,7 @@ function generateLowAttendanceAlerts($conn, $threshold = 75) {
     ];
 }
 
-/**
- * Mark alerts as read
- */
+/*Mark alerts as read */
 function markAlertAsRead($conn, $alertId) {
     $query = "UPDATE dbo.Alerts SET IsRead = 1 WHERE AlertID = ?";
     $stmt = sqlsrv_query($conn, $query, [$alertId]);
@@ -127,9 +122,8 @@ function markAlertAsRead($conn, $alertId) {
     return true;
 }
 
-/**
- * Delete old read alerts (older than 3 days)
- */
+/*Delete old read alerts (older than 3 days)*/
+
 function cleanupOldAlerts($conn) {
     $query = "
         DELETE FROM dbo.Alerts 
@@ -262,7 +256,7 @@ if (basename(__FILE__) == basename($_SERVER['SCRIPT_FILENAME'])) {
                 ]);
         }
     } else {
-        // Default: Run alert generation
+        // Run alert generation
         $result = generateLowAttendanceAlerts($conn, $LOW_ATTENDANCE_THRESHOLD);
         
         echo json_encode([

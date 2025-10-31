@@ -1,5 +1,3 @@
-
-
 <?php
 include 'connect.php';
 
@@ -23,7 +21,7 @@ function generateReportData($conn, $period, $startDate, $endDate, $courseId = nu
     
     $params = [];
     
-    // 🔧 FIXED: Date filtering with better monthly handling
+    // Date filtering
     if ($period === 'monthly' && $startDate) {
         // Handle both YYYY-MM and YYYY-MM-DD formats
         if (strlen($startDate) === 7) {
@@ -38,7 +36,6 @@ function generateReportData($conn, $period, $startDate, $endDate, $courseId = nu
         
         error_log("Monthly filter - First day: $firstDay, Last day: $lastDay");
         
-        // Use SessionDate instead of MarkedTime for more accurate filtering
         $query .= " AND ats.SessionDate BETWEEN ? AND ?";
         $params[] = $firstDay;
         $params[] = $lastDay;
@@ -169,7 +166,6 @@ $period = $_GET['period'] ?? 'monthly';
 $startDate = $_GET['start'] ?? null;
 $endDate = $_GET['end'] ?? null;
 
-// 🔧 FIXED: If no start date provided for monthly, use current month
 if ($period === 'monthly' && !$startDate) {
     $startDate = date('Y-m-01');
 }

@@ -154,7 +154,6 @@
 </div>
 
 <script>
-// Handle period change - 🔧 ONLY FIXED MONTHLY BEHAVIOR
 document.getElementById('periodSelect').addEventListener('change', function() {
     var period = this.value;
     var startLabel = document.getElementById('startLabel');
@@ -166,8 +165,8 @@ document.getElementById('periodSelect').addEventListener('change', function() {
         startLabel.textContent = 'Select Month';
         startDate.style.display = 'none';
         startMonth.style.display = 'block';
-        startMonth.name = 'start'; // 🔧 Set name to 'start' for form submission
-        startDate.name = ''; // Remove name from date input
+        startMonth.name = 'start'; 
+        startDate.name = ''; 
         endDateContainer.style.display = 'none';
         
         if (startDate.value) {
@@ -195,7 +194,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('periodSelect').dispatchEvent(new Event('change'));
 });
 
-// Export function - 🔧 ONLY FIXED MONTHLY HANDLING
+
 function exportReport(format) {
     var form = document.getElementById('reportFilterForm');
     var formData = new FormData(form);
@@ -212,7 +211,7 @@ function exportReport(format) {
         url += '&period=' + encodeURIComponent(period);
     }
     
-    // 🔧 FIXED: Get value from the visible input
+    // Get value from the visible input
     if (period === 'monthly') {
         var monthValue = document.getElementById('startMonth').value;
         if (monthValue) {
