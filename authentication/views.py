@@ -13,7 +13,7 @@ def login_view(request):
             conn = pyodbc.connect(
                 'DRIVER={ODBC Driver 17 for SQL Server};'
                 'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
-                'DATABASE=Attendance;'
+                'DATABASE=Attendance1;'
                 'Trusted_Connection=yes;'
             )
             cursor = conn.cursor()
@@ -95,7 +95,7 @@ def admin_dashboard(request):
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
             'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
-            'DATABASE=Attendance;'
+            'DATABASE=Attendance1;'
             'Trusted_Connection=yes;'
         )
         cursor = conn.cursor()
@@ -124,7 +124,6 @@ def admin_dashboard(request):
     }
     return render(request, 'dashboard/admin_dashboard.html', context)
 
-# 🔹 LECTURER DASHBOARD
 def lecturer_dashboard(request):
     username = request.session.get('username', 'Unknown')
     role = request.session.get('role', 'unknown')
@@ -133,24 +132,57 @@ def lecturer_dashboard(request):
 
     my_courses_count = 0
     total_students = 0
-    sessions_this_week = 0
+    attendance_records_count = 0
 
     try:
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
             'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
-            'DATABASE=Attendance;'
+            'DATABASE=Attendance1;'
             'Trusted_Connection=yes;'
         )
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM dbo.Courses WHERE LecturerUsername = ?", (username,))
-        my_courses_count = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM dbo.Students WHERE CourseID IN (SELECT ID FROM dbo.Courses WHERE LecturerUsername = ?)", (username,))
-        total_students = cursor.fetchone()[0]
-        from datetime import datetime, timedelta
-        week_start = datetime.now() - timedelta(days=datetime.now().weekday())
-        cursor.execute("SELECT COUNT(*) FROM dbo.Sessions WHERE LecturerUsername = ? AND Date >= ?", (username, week_start))
-        sessions_this_week = cursor.fetchone()[0]
+        
+        # Get LecturerID from username
+        cursor.execute("""
+            SELECT l.LecturerID 
+            FROM dbo.Lecturers l
+            JOIN dbo.Users u ON l.UserID = u.UserID
+            WHERE u.Username = ?
+        """, (username,))
+        lecturer_row = cursor.fetchone()
+        
+        if lecturer_row:
+            lecturer_id = lecturer_row[0]
+            
+            # Count assigned courses
+            cursor.execute("""
+                SELECT COUNT(DISTINCT ca.CourseID)
+                FROM dbo.Course_Assignments ca
+                WHERE ca.LecturerID = ? AND ca.IsActive = 1
+            """, (lecturer_id,))
+            my_courses_count = cursor.fetchone()[0]
+            
+            # Count total students enrolled in lecturer's courses
+            cursor.execute("""
+                SELECT COUNT(DISTINCT e.StudentID)
+                FROM dbo.Enrollments e
+                JOIN dbo.Course_Assignments ca ON e.CourseID = ca.CourseID
+                WHERE ca.LecturerID = ? AND ca.IsActive = 1 AND e.Status = 'Active'
+            """, (lecturer_id,))
+            total_students = cursor.fetchone()[0]
+            
+            # Count attendance marks created this week
+            from datetime import datetime, timedelta
+            week_start = datetime.now() - timedelta(days=datetime.now().weekday())
+            cursor.execute("""
+                SELECT COUNT(*)
+                FROM dbo.Attendance_Mark am
+                JOIN dbo.Course_Assignments ca ON am.CourseID = ca.CourseID
+                WHERE ca.LecturerID = ? AND am.[Date] >= ?
+            """, (lecturer_id, week_start))
+            attendance_records_count = cursor.fetchone()[0]
+        
         conn.close()
     except Exception as e:
         messages.warning(request, f"Lecturer stats error: {e} - Using defaults.")
@@ -163,14 +195,17 @@ def lecturer_dashboard(request):
         'dashboard_title': f"<i class='fas fa-tachometer-alt me-2'></i>Lecturer Dashboard - Welcome, {first_name} {last_name}!",
         'my_courses_count': my_courses_count,
         'total_students': total_students,
-        'sessions_this_week': sessions_this_week,
+        'attendance_records_count': attendance_records_count,
     }
     return render(request, 'dashboard/lecturer_dashboard.html', context)
-
 # 🔹 STUDENT DASHBOARD
 
 def student_dashboard(request):
-    # Get username from session or query parameter
+    import pyodbc
+    from django.contrib import messages
+    from django.shortcuts import render, redirect
+
+    # Get username and role from session
     username = request.session.get('username') or request.GET.get('username', 'Unknown')
     role = request.session.get('role', 'unknown')
     first_name = request.session.get('first_name', '')
@@ -185,13 +220,13 @@ def student_dashboard(request):
         # Connect to the database
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
-            'DATABASE=Attendance;'
+            'SERVER=DESKTOP-L8AJQU8\\SQLEXPRESS;'
+            'DATABASE=Attendance1;'
             'Trusted_Connection=yes;'
         )
         cursor = conn.cursor()
 
-        # Fetch student_id, first_name, and last_name
+        # Fetch student_id and names
         cursor.execute("""
             SELECT s.StudentID, u.FirstName, u.LastName
             FROM dbo.Students s
@@ -209,36 +244,33 @@ def student_dashboard(request):
             SELECT c.CourseCode, c.CourseName, e.EnrollmentDate, e.Status, e.RejectionReason, e.DropRejectionReason
             FROM dbo.Enrollments e
             JOIN dbo.Courses c ON e.CourseID = c.CourseID
-            JOIN dbo.Students s ON e.StudentID = s.StudentID
-            JOIN dbo.Users u ON s.UserID = u.UserID
-            WHERE u.Username = ?
-        """, (username,))
+            WHERE e.StudentID = ?
+        """, (student_id,))
         enrolled_courses = [
-        {
-            'CourseCode': row.CourseCode,
-            'CourseName': row.CourseName,
-            'EnrollmentDate': row.EnrollmentDate,
-            'Status': row.Status,
-            'RejectionReason': row.RejectionReason,
-            'DropRejectionReason': row.DropRejectionReason
-        }
-        for row in cursor.fetchall()
-    ]
+            {
+                'CourseCode': row.CourseCode,
+                'CourseName': row.CourseName,
+                'EnrollmentDate': row.EnrollmentDate,
+                'Status': row.Status,
+                'RejectionReason': row.RejectionReason,
+                'DropRejectionReason': row.DropRejectionReason
+            }
+            for row in cursor.fetchall()
+        ]
 
         total_courses = len(enrolled_courses)
 
-        # Fetch attendance statistics for enrolled courses in the current academic year
+        # Fetch attendance statistics (no SessionID or Attendance_Sessions table anymore)
         cursor.execute("""
             SELECT 
-                COUNT(*) as total_classes,
-                SUM(CASE WHEN ar.Status = 'Present' THEN 1 ELSE 0 END) as classes_attended
+                COUNT(*) AS total_classes,
+                SUM(CASE WHEN ar.Status = 'Present' THEN 1 ELSE 0 END) AS classes_attended
             FROM dbo.Attendance_Records ar
-            JOIN dbo.Attendance_Sessions s ON ar.SessionID = s.SessionID
-            JOIN dbo.Enrollments e ON s.CourseID = e.CourseID
+            JOIN dbo.Attendance_Mark am ON ar.MarkID = am.MarkID
+            JOIN dbo.Enrollments e ON ar.StudentID = e.StudentID
             JOIN dbo.Courses c ON e.CourseID = c.CourseID
-            WHERE e.StudentID = ? 
+            WHERE ar.StudentID = ?
             AND c.AcademicYearID = (SELECT TOP 1 AcademicYearID FROM dbo.Academic_Years WHERE IsActive = 1)
-            AND s.IsActive = 1
         """, (student_id,))
         attendance_data = cursor.fetchone()
         total_classes = attendance_data[0] if attendance_data else 0
@@ -251,6 +283,7 @@ def student_dashboard(request):
         cursor.close()
         conn.close()
 
+    # Prepare data for rendering
     context = {
         'user_role': role,
         'username': username,
@@ -262,4 +295,5 @@ def student_dashboard(request):
         'classes_attended': classes_attended,
         'enrolled_courses': enrolled_courses,
     }
+
     return render(request, 'dashboard/student_dashboard.html', context)

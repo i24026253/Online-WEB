@@ -14,23 +14,17 @@ function successAlert($text) {
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>';
 }
+
 function errorAlert($text) {
     return '<div class="alert alert-danger alert-dismissible fade show" role="alert">
                 <i class="fas fa-times-circle me-2"></i>' . htmlspecialchars($text) . '
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>';
 }
-function getLastInsertId($conn) {
-    $q = "SELECT SCOPE_IDENTITY() AS id";
-    $res = sqlsrv_query($conn, $q);
-    $row = $res ? sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC) : null;
-    if ($res) sqlsrv_free_stmt($res);
-    return $row ? (int)$row['id'] : 0;
-}
 
 /* ---------- Verify Lecturer ---------- */
-$lecturer_q = "SELECT u.UserID, u.Role, l.LecturerID 
-               FROM dbo.Users u JOIN dbo.Lecturers l ON u.UserID = l.UserID 
+$lecturer_q = "SELECT u.UserID, u.Role, l.LecturerID
+               FROM dbo.Users u JOIN dbo.Lecturers l ON u.UserID = l.UserID
                WHERE u.Username = ?";
 $lecturer_res = sqlsrv_query($conn, $lecturer_q, [$username]);
 if ($lecturer_res === false || !($row = sqlsrv_fetch_array($lecturer_res, SQLSRV_FETCH_ASSOC)) || $row['Role'] !== 'Lecturer') {
@@ -43,16 +37,16 @@ if ($lecturer_res !== false) sqlsrv_free_stmt($lecturer_res);
 /* ---------- Current Date ---------- */
 $today = date('Y-m-d');
 
-/* ---------- Get MarkID & SessionID ---------- */
-$mark_id    = (int)($_GET['mark_id'] ?? 0);
-$session_id = (int)($_GET['session_id'] ?? 0);
+/* ---------- Get MarkID & CourseID ---------- */
+$mark_id = (int)($_GET['mark_id'] ?? 0);
+$course_id = (int)($_GET['course_id'] ?? 0);
 $selected_date = null;
 
 if ($mark_id > 0) {
-    $q = "SELECT SessionID, [Date] FROM dbo.Attendance_Mark WHERE MarkID = ?";
+    $q = "SELECT CourseID, [Date] FROM dbo.Attendance_Mark WHERE MarkID = ?";
     $res = sqlsrv_query($conn, $q, [$mark_id]);
     if ($res && ($row = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC))) {
-        $session_id = $row['SessionID'];
+        $course_id = $row['CourseID'];
         $selected_date = $row['Date']->format('Y-m-d');
     }
     if ($res !== false) sqlsrv_free_stmt($res);
@@ -65,70 +59,88 @@ $success_count = 0;
 $error_count = 0;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_attendance'])) {
-    $session_id  = (int)$_POST['session_id'];
-    $mark_id     = (int)$_POST['mark_id']; // may be 0
-    $marked_by   = $lecturer_id;
+    $course_id = (int)$_POST['course_id'];
+    $mark_id = (int)$_POST['mark_id']; // may be 0
     $marked_time = date('Y-m-d H:i:s');
-    $today       = date('Y-m-d');
-
+    $today = date('Y-m-d');
     $success = $error = 0;
 
     // === 1. CREATE OR UPDATE Attendance_Mark ===
     if ($mark_id == 0) {
         // First time → INSERT + get MarkID
-        $ins = "INSERT INTO dbo.Attendance_Mark (SessionID, [Date], MarkedTime) 
-                OUTPUT INSERTED.MarkID 
+        $ins = "INSERT INTO dbo.Attendance_Mark (CourseID, [Date], MarkedTime)
+                OUTPUT INSERTED.MarkID
                 VALUES (?, ?, ?)";
-        $res = sqlsrv_query($conn, $ins, [$session_id, $today, $marked_time]);
-        if ($res && ($row = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC))) {
+        $res = sqlsrv_query($conn, $ins, [$course_id, $today, $marked_time]);
+        
+        // ERROR CHECKING
+        if ($res === false) {
+            $errors = sqlsrv_errors();
+            error_log("Attendance_Mark INSERT failed: " . print_r($errors, true));
+            die("<div class='alert alert-danger'>Database Error: " . htmlspecialchars($errors[0]['message']) . "</div>");
+        }
+        
+        if ($row = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC)) {
             $mark_id = (int)$row['MarkID'];
         } else {
-            $error_count = 999; // Indicate critical error
-            goto end_save;
+            die("<div class='alert alert-danger'>Failed to retrieve MarkID after insert.</div>");
         }
     } else {
         // Already exists → UPDATE MarkedTime
         $upd = "UPDATE dbo.Attendance_Mark SET EditedTime = ?, EditedBy = ? WHERE MarkID = ?";
-        sqlsrv_query($conn, $upd, [$marked_time, $marked_by, $mark_id]);
+        $res = sqlsrv_query($conn, $upd, [$marked_time, $marked_by, $mark_id]);
+        
+        if ($res === false) {
+            $errors = sqlsrv_errors();
+            error_log("Attendance_Mark UPDATE failed: " . print_r($errors, true));
+        }
     }
 
     // === 2. SAVE STUDENT RECORDS ===
-    foreach ($_POST['attendance'] as $student_id => $status) {
-        $remarks = trim($_POST['remarks'][$student_id] ?? '');
-        $remarks = $remarks === '' ? null : $remarks;
+    if (isset($_POST['attendance']) && is_array($_POST['attendance'])) {
+        foreach ($_POST['attendance'] as $student_id => $status) {
+            $remarks = trim($_POST['remarks'][$student_id] ?? '');
+            $remarks = $remarks === '' ? null : $remarks;
+            
+            $chk = sqlsrv_query($conn, "SELECT AttendanceID FROM dbo.Attendance_Records WHERE MarkID = ? AND StudentID = ?", [$mark_id, $student_id]);
+            $exists = $chk ? sqlsrv_fetch_array($chk, SQLSRV_FETCH_ASSOC) : false;
+            if ($chk !== false) sqlsrv_free_stmt($chk);
 
-        $chk = sqlsrv_query($conn, "SELECT AttendanceID FROM dbo.Attendance_Records WHERE MarkID = ? AND StudentID = ?", [$mark_id, $student_id]);
-        $exists = $chk ? sqlsrv_fetch_array($chk, SQLSRV_FETCH_ASSOC) : false;
-        if ($chk !== false) sqlsrv_free_stmt($chk);
-
-        if ($exists) {
-            $sql = "UPDATE dbo.Attendance_Records 
-                    SET Status = ?, Remarks = ?
-                    WHERE AttendanceID = ?";
-            $p = [$status, $remarks, $exists['AttendanceID']];
-        } else {
-            $sql = "INSERT INTO dbo.Attendance_Records (MarkID, StudentID, Status, Remarks)
-                    VALUES (?,?,?,?)";
-            $p = [$mark_id, $student_id, $status, $remarks];
+            if ($exists) {
+                $sql = "UPDATE dbo.Attendance_Records
+                        SET Status = ?, Remarks = ?
+                        WHERE AttendanceID = ?";
+                $p = [$status, $remarks, $exists['AttendanceID']];
+            } else {
+                $sql = "INSERT INTO dbo.Attendance_Records (MarkID, StudentID, Status, Remarks)
+                        VALUES (?,?,?,?)";
+                $p = [$mark_id, $student_id, $status, $remarks];
+            }
+            
+            $res = sqlsrv_query($conn, $sql, $p);
+            
+            // ERROR CHECKING
+            if ($res === false) {
+                $error++;
+                $errors = sqlsrv_errors();
+                error_log("Attendance_Records save failed for StudentID $student_id: " . print_r($errors, true));
+            } else {
+                $success++;
+            }
         }
-
-        $res = sqlsrv_query($conn, $sql, $p);
-        $res ? $success++ : $error++;
     }
 
     $success_count = $success;
     $error_count = $error;
 
     // Redirect with success message to prevent resubmission
-    $redirect_url = "mark_attendance.php?username=" . urlencode($username) . 
-                    "&session_id=" . $session_id . 
-                    "&mark_id=" . $mark_id . 
-                    "&success=" . $success . 
+    $redirect_url = "mark_attendance.php?username=" . urlencode($username) .
+                    "&course_id=" . $course_id .
+                    "&mark_id=" . $mark_id .
+                    "&success=" . $success .
                     "&errors=" . $error;
     header("Location: " . $redirect_url);
     exit;
-
-    end_save:
 }
 
 // Check for success message from redirect
@@ -144,7 +156,7 @@ if (isset($_GET['success'])) {
 
 /* ---------- COURSES ---------- */
 $courses = [];
-$q = "SELECT DISTINCT c.CourseID, c.CourseCode, c.CourseName 
+$q = "SELECT DISTINCT c.CourseID, c.CourseCode, c.CourseName, c.Department
       FROM dbo.Courses c
       JOIN dbo.Course_Assignments ca ON c.CourseID = ca.CourseID
       WHERE ca.LecturerID = ? AND ca.IsActive = 1 AND c.IsActive = 1
@@ -153,42 +165,41 @@ $res = sqlsrv_query($conn, $q, [$lecturer_id]);
 while ($row = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC)) $courses[] = $row;
 if ($res !== false) sqlsrv_free_stmt($res);
 
-/* ---------- SESSION & MARK DATA ---------- */
-$session_data = $enrolled_students = $attendance_records = $mark_dates = $all_sessions = null;
+/* ---------- COURSE DATA ---------- */
+$course_data = $enrolled_students = $attendance_records = $mark_dates = null;
 
-if ($session_id > 0) {
-    // Session info
-    $q = "SELECT s.*, c.CourseCode, c.CourseName
-          FROM dbo.Attendance_Sessions s
-          JOIN dbo.Courses c ON s.CourseID = c.CourseID
-          WHERE s.SessionID = ? AND s.LecturerID = ?";
-    $res = sqlsrv_query($conn, $q, [$session_id, $lecturer_id]);
-    $session_data = $res ? sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC) : null;
+if ($course_id > 0) {
+    // Course info
+    $q = "SELECT c.CourseID, c.CourseCode, c.CourseName, c.Department, c.Credits
+          FROM dbo.Courses c
+          JOIN dbo.Course_Assignments ca ON c.CourseID = ca.CourseID
+          WHERE c.CourseID = ? AND ca.LecturerID = ? AND ca.IsActive = 1";
+    $res = sqlsrv_query($conn, $q, [$course_id, $lecturer_id]);
+    $course_data = $res ? sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC) : null;
     if ($res !== false) sqlsrv_free_stmt($res);
-    if (!$session_data) die("<p style='color:red;'>Session not found.</p>");
+    
+    if (!$course_data) die("<p style='color:red;'>Course not found or access denied.</p>");
 
-    // All sessions for switcher
-    $q = "SELECT SessionID, Session FROM dbo.Attendance_Sessions WHERE CourseID = ? AND LecturerID = ? ORDER BY Session";
-    $res = sqlsrv_query($conn, $q, [$session_data['CourseID'], $lecturer_id]);
-    while ($row = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC)) $all_sessions[] = $row;
-    if ($res !== false) sqlsrv_free_stmt($res);
-
-    // All marked dates
-    $q = "SELECT MarkID, [Date] FROM dbo.Attendance_Mark WHERE SessionID = ? ORDER BY [Date] DESC";
-    $res = sqlsrv_query($conn, $q, [$session_id]);
+    // All marked dates for this course
+    $q = "SELECT MarkID, [Date] FROM dbo.Attendance_Mark WHERE CourseID = ? ORDER BY [Date] DESC";
+    $res = sqlsrv_query($conn, $q, [$course_id]);
     while ($row = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC)) $mark_dates[] = $row;
     if ($res !== false) sqlsrv_free_stmt($res);
 
-    // Enrolled students via Enrollments
+    // Enrolled students via Enrollments (by CourseID)
     $q = "SELECT s.StudentID, s.StudentNumber, u.FirstName, u.LastName
-          FROM dbo.Students s
-          JOIN dbo.Users u ON s.UserID = u.UserID
-          JOIN dbo.Enrollments e ON s.StudentID = e.StudentID
-          WHERE e.SessionID = ? AND e.Status = 'Active'
-          ORDER BY s.StudentNumber";
-    $res = sqlsrv_query($conn, $q, [$session_id]);
-    while ($row = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC)) $enrolled_students[] = $row;
-    if ($res !== false) sqlsrv_free_stmt($res);
+        FROM dbo.Students s
+        JOIN dbo.Users u ON s.UserID = u.UserID
+        JOIN dbo.Enrollments e ON s.StudentID = e.StudentID
+        WHERE e.CourseID = ? AND e.Status != 'Dropped'
+        ORDER BY s.StudentNumber";
+    $res = sqlsrv_query($conn, $q, [$course_id]);
+    while ($row = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC)) {
+        $enrolled_students[] = $row;
+    }
+    if ($res !== false) {
+        sqlsrv_free_stmt($res);
+    }
 
     // Attendance records by MarkID
     if ($mark_id > 0) {
@@ -208,34 +219,30 @@ renderHeader($username, $user_role, 'attendance');
     <h1 class="h2"><i class="fas fa-clipboard-check me-2"></i>Mark Attendance</h1>
 </div>
 
-<?php if (!$session_id) { ?>
-    <!-- COURSE & SESSION SELECTION -->
+<?php if (!$course_id) { ?>
+    <!-- COURSE SELECTION -->
     <div class="card">
         <div class="card-header bg-white">
-            <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Select Session</h5>
+            <h5 class="mb-0"><i class="fas fa-book me-2"></i>Select Course</h5>
         </div>
         <div class="card-body">
             <form method="GET" action="mark_attendance.php" class="row g-3">
                 <input type="hidden" name="username" value="<?php echo htmlspecialchars($username); ?>">
-                <div class="col-md-6">
+                <div class="col-md-8">
                     <label class="form-label">Course <span class="text-danger">*</span></label>
-                    <select class="form-control" id="courseSelect" required>
+                    <select class="form-control" name="course_id" required>
                         <option value="">-- Select Course --</option>
                         <?php foreach ($courses as $c) { ?>
                             <option value="<?php echo $c['CourseID']; ?>">
-                                <?php echo htmlspecialchars($c['CourseCode'].' - '.$c['CourseName']); ?>
+                                <?php echo htmlspecialchars($c['CourseCode'].' - '.$c['CourseName'].' ('.$c['Department'].')'); ?>
                             </option>
                         <?php } ?>
                     </select>
                 </div>
-                <div class="col-md-6">
-                    <label class="form-label">Session <span class="text-danger">*</span></label>
-                    <select class="form-control" name="session_id" id="sessionSelect" required disabled>
-                        <option value="">-- Select Course First --</option>
-                    </select>
-                </div>
                 <div class="col-12">
-                    <button type="submit" class="btn btn-primary">Proceed</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-arrow-right me-2"></i>Proceed
+                    </button>
                 </div>
             </form>
         </div>
@@ -245,42 +252,42 @@ renderHeader($username, $user_role, 'attendance');
     <div class="card mb-3">
         <div class="card-header bg-primary text-white">
             <h5 class="mb-0">
-                <?php echo htmlspecialchars($session_data['CourseCode'].' - '.$session_data['CourseName']); ?>
+                <?php echo htmlspecialchars($course_data['CourseCode'].' - '.$course_data['CourseName']); ?>
             </h5>
         </div>
         <div class="card-body">
-            <!-- Session Details Row -->
+            <!-- Course Details Row -->
             <div class="row mb-3 pb-3 border-bottom">
                 <div class="col-md-4">
                     <div class="d-flex align-items-center">
-                        <i class="fas fa-clock text-primary me-2"></i>
+                        <i class="fas fa-building text-primary me-2"></i>
                         <div>
-                            <small class="text-muted d-block">Time</small>
-                            <strong><?php echo $session_data['SessionStartTime']->format('h:i A') . ' - ' . $session_data['SessionEndTime']->format('h:i A'); ?></strong>
+                            <small class="text-muted d-block">Department</small>
+                            <strong><?php echo htmlspecialchars($course_data['Department']); ?></strong>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="d-flex align-items-center">
-                        <i class="fas fa-bookmark text-primary me-2"></i>
+                        <i class="fas fa-graduation-cap text-primary me-2"></i>
                         <div>
-                            <small class="text-muted d-block">Type</small>
-                            <strong><?php echo htmlspecialchars($session_data['SessionType']); ?></strong>
+                            <small class="text-muted d-block">Course Code</small>
+                            <strong><?php echo htmlspecialchars($course_data['CourseCode']); ?></strong>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="d-flex align-items-center">
-                        <i class="fas fa-map-marker-alt text-primary me-2"></i>
+                        <i class="fas fa-star text-primary me-2"></i>
                         <div>
-                            <small class="text-muted d-block">Location</small>
-                            <strong><?php echo htmlspecialchars($session_data['Location']); ?></strong>
+                            <small class="text-muted d-block">Credits</small>
+                            <strong><?php echo htmlspecialchars($course_data['Credits']); ?></strong>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <!-- Date & Session Switcher Row -->
+            
+            <!-- Date & Course Switcher Row -->
             <div class="row">
                 <div class="col-md-6">
                     <label class="form-label fw-bold"><i class="fas fa-calendar me-1"></i>Date</label>
@@ -297,11 +304,11 @@ renderHeader($username, $user_role, 'attendance');
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label fw-bold"><i class="fas fa-exchange-alt me-1"></i>Switch Session</label>
-                    <select class="form-control" onchange="window.location='mark_attendance.php?username=<?php echo urlencode($username); ?>&session_id='+this.value">
-                        <?php foreach ($all_sessions as $s): ?>
-                            <option value="<?php echo $s['SessionID']; ?>" <?php echo $s['SessionID'] == $session_id ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($s['Session']); ?>
+                    <label class="form-label fw-bold"><i class="fas fa-exchange-alt me-1"></i>Switch Course</label>
+                    <select class="form-control" onchange="window.location='mark_attendance.php?username=<?php echo urlencode($username); ?>&course_id='+this.value">
+                        <?php foreach ($courses as $c): ?>
+                            <option value="<?php echo $c['CourseID']; ?>" <?php echo $c['CourseID'] == $course_id ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($c['CourseCode'].' - '.$c['CourseName']); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -311,12 +318,14 @@ renderHeader($username, $user_role, 'attendance');
     </div>
 
     <?php if (empty($enrolled_students)) { ?>
-        <div class="alert alert-warning">No students enrolled in this session.</div>
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>No students enrolled in this course.
+        </div>
     <?php } else { ?>
-        <form method="POST" action="mark_attendance.php?username=<?php echo urlencode($username); ?>&session_id=<?php echo $session_id; ?>&mark_id=<?php echo $mark_id; ?>" id="attendanceForm">
-            <input type="hidden" name="session_id" value="<?php echo $session_id; ?>">
+        <form method="POST" action="mark_attendance.php?username=<?php echo urlencode($username); ?>&course_id=<?php echo $course_id; ?>&mark_id=<?php echo $mark_id; ?>" id="attendanceForm">
+            <input type="hidden" name="course_id" value="<?php echo $course_id; ?>">
             <input type="hidden" name="mark_id" value="<?php echo $mark_id; ?>">
-
+            
             <div class="card">
                 <div class="card-header bg-white">
                     <div class="row align-items-center">
@@ -325,10 +334,10 @@ renderHeader($username, $user_role, 'attendance');
                         </div>
                         <div class="col-auto">
                             <button type="button" class="btn btn-sm btn-outline-success" onclick="markAll('Present')">
-                                Mark All Present
+                                <i class="fas fa-check me-1"></i>Mark All Present
                             </button>
                             <button type="button" class="btn btn-sm btn-outline-danger" onclick="markAll('Absent')">
-                                Mark All Absent
+                                <i class="fas fa-times me-1"></i>Mark All Absent
                             </button>
                         </div>
                     </div>
@@ -357,19 +366,19 @@ renderHeader($username, $user_role, 'attendance');
                                         <td><small class="text-muted"><?php echo htmlspecialchars($stu['StudentNumber']); ?></small></td>
                                         <td>
                                             <div class="btn-group btn-group-sm" role="group">
-                                                <input type="radio" class="btn-check" name="attendance[<?php echo $sid; ?>]" 
-                                                       id="present_<?php echo $sid; ?>" value="Present" 
+                                                <input type="radio" class="btn-check" name="attendance[<?php echo $sid; ?>]"
+                                                       id="present_<?php echo $sid; ?>" value="Present"
                                                        <?php echo $status == 'Present' ? 'checked' : ''; ?>>
                                                 <label class="btn btn-outline-success" for="present_<?php echo $sid; ?>">Present</label>
-
-                                                <input type="radio" class="btn-check" name="attendance[<?php echo $sid; ?>]" 
+                                                
+                                                <input type="radio" class="btn-check" name="attendance[<?php echo $sid; ?>]"
                                                        id="absent_<?php echo $sid; ?>" value="Absent"
                                                        <?php echo $status == 'Absent' ? 'checked' : ''; ?>>
                                                 <label class="btn btn-outline-danger" for="absent_<?php echo $sid; ?>">Absent</label>
                                             </div>
                                         </td>
                                         <td>
-                                            <input type="text" class="form-control form-control-sm" name="remarks[<?php echo $sid; ?>]" 
+                                            <input type="text" class="form-control form-control-sm" name="remarks[<?php echo $sid; ?>]"
                                                    placeholder="Optional…" value="<?php echo htmlspecialchars($remark); ?>">
                                         </td>
                                     </tr>
@@ -472,30 +481,6 @@ function switchDate(val) {
     }
 }
 
-document.getElementById('courseSelect')?.addEventListener('change', function () {
-    const courseId = this.value;
-    const sessSel = document.getElementById('sessionSelect');
-    sessSel.disabled = true;
-    sessSel.innerHTML = '<option>Loading…</option>';
-
-    fetch(`get_sessions_for_mark.php?course_id=${courseId}&username=<?php echo addslashes($username); ?>`)
-        .then(r => r.json())
-        .then(d => {
-            sessSel.innerHTML = '<option value="">-- Select Session --</option>';
-            if (d.success && d.sessions.length) {
-                d.sessions.forEach(s => {
-                    const opt = document.createElement('option');
-                    opt.value = s.SessionID;
-                    opt.textContent = `${s.Session} | ${s.SessionStartTime}-${s.SessionEndTime}`;
-                    sessSel.appendChild(opt);
-                });
-            } else {
-                sessSel.innerHTML = '<option value="">No sessions</option>';
-            }
-            sessSel.disabled = false;
-        });
-});
-
 function markAll(st) {
     document.querySelectorAll(`input[type="radio"][value="${st}"]`).forEach(r => r.checked = true);
 }
@@ -510,7 +495,7 @@ function showConfirmModal() {
 function submitForm() {
     const modal = bootstrap.Modal.getInstance(document.getElementById('confirmModal'));
     modal.hide();
-    
+   
     // Add hidden input to trigger the POST
     const form = document.getElementById('attendanceForm');
     const input = document.createElement('input');
@@ -518,7 +503,7 @@ function submitForm() {
     input.name = 'mark_attendance';
     input.value = '1';
     form.appendChild(input);
-    
+   
     form.submit();
 }
 
@@ -528,7 +513,7 @@ function closeSuccessModal() {
         modal.hide();
     }
     // Redirect to clear POST data and refresh
-    window.location.href = 'mark_attendance.php?username=<?php echo urlencode($username); ?>&session_id=<?php echo $session_id; ?>&mark_id=<?php echo $mark_id; ?>';
+    window.location.href = 'mark_attendance.php?username=<?php echo urlencode($username); ?>&course_id=<?php echo $course_id; ?>&mark_id=<?php echo $mark_id; ?>';
 }
 
 <?php if ($show_success_modal): ?>
