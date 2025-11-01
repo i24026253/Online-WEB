@@ -63,7 +63,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'mssql',
         'NAME': 'Attendance',  # Replace with your actual DB name (create it in SSMS if needed)
-        'HOST': 'DESKTOP-L8AJQU8\SQLEXPRESS',  # Use double backslash in Python strings
+        'HOST': 'LAPTOP-8O7OUMB4',  # Use double backslash in Python strings
         'PORT': '',  # Default is fine
         'OPTIONS': {
             'driver': 'ODBC Driver 17 for SQL Server',

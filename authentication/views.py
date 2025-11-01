@@ -12,7 +12,7 @@ def login_view(request):
         try:
             conn = pyodbc.connect(
                 'DRIVER={ODBC Driver 17 for SQL Server};'
-                'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
+                'SERVER=LAPTOP-8O7OUMB4;'
                 'DATABASE=Attendance;'
                 'Trusted_Connection=yes;'
             )
@@ -94,7 +94,7 @@ def admin_dashboard(request):
     try:
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
+            'SERVER=DESKTOP-LAPTOP-8O7OUMB4;'
             'DATABASE=Attendance;'
             'Trusted_Connection=yes;'
         )
@@ -185,7 +185,7 @@ def student_dashboard(request):
         # Connect to the database
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
+            'SERVER=LAPTOP-8O7OUMB4;'
             'DATABASE=Attendance;'
             'Trusted_Connection=yes;'
         )

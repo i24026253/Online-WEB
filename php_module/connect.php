@@ -4,7 +4,7 @@
 // ============================================
 
 // Your local SQL Server instance and database
-$serverName = "DESKTOP-L8AJQU8\SQLEXPRESS"; // <-- use your actual instance name
+$serverName = "LAPTOP-8O7OUMB4"; // <-- use your actual instance name
 $connectionOptions = array(
     "Database" => "Attendance", // same as Django NAME
     "TrustServerCertificate" => true,
