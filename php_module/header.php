@@ -143,7 +143,7 @@ function renderHeader($username, $user_role = 'student', $active_page = '') {
                                         <i class="fas fa-book me-2"></i>My Courses
                                     </a>
                                 </li>
-                                <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-history me-2"></i>Attendance</a></li>
+                                <li class="nav-item"><a class="nav-link" href="http://localhost/php_module/mark_attendance.php?username={{ username }}"><i class="fas fa-history me-2"></i>Attendance</a></li>
                                 <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-chart-line me-2"></i>Progress</a></li>
                             </ul>
                         <?php } ?>
