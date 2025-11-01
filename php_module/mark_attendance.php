@@ -188,14 +188,18 @@ if ($course_id > 0) {
 
     // Enrolled students via Enrollments (by CourseID)
     $q = "SELECT s.StudentID, s.StudentNumber, u.FirstName, u.LastName
-          FROM dbo.Students s
-          JOIN dbo.Users u ON s.UserID = u.UserID
-          JOIN dbo.Enrollments e ON s.StudentID = e.StudentID
-          WHERE e.CourseID = ? AND e.Status = 'Active'
-          ORDER BY s.StudentNumber";
+        FROM dbo.Students s
+        JOIN dbo.Users u ON s.UserID = u.UserID
+        JOIN dbo.Enrollments e ON s.StudentID = e.StudentID
+        WHERE e.CourseID = ? AND e.Status != 'Dropped'
+        ORDER BY s.StudentNumber";
     $res = sqlsrv_query($conn, $q, [$course_id]);
-    while ($row = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC)) $enrolled_students[] = $row;
-    if ($res !== false) sqlsrv_free_stmt($res);
+    while ($row = sqlsrv_fetch_array($res, SQLSRV_FETCH_ASSOC)) {
+        $enrolled_students[] = $row;
+    }
+    if ($res !== false) {
+        sqlsrv_free_stmt($res);
+    }
 
     // Attendance records by MarkID
     if ($mark_id > 0) {
