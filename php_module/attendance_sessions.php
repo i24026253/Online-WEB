@@ -48,26 +48,18 @@ if (!$lecturer_row || $lecturer_row['Role'] !== 'Lecturer') {
 $lecturer_id = $lecturer_row['LecturerID'];
 $user_role = strtolower($lecturer_row['Role']);
 
-// Handle create session
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_session'])) {
-    $course_id     = (int)$_POST['course_id'];
-    $session_id    = (int)$_POST['session_id'];
-    $mark_date     = $_POST['mark_date'];
-    $session_name  = trim($_POST['session_name']);
+// Handle create attendance mark
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_attendance'])) {
+    $course_id = (int)$_POST['course_id'];
+    $mark_date = $_POST['mark_date'];
 
     $errors = [];
 
     if ($course_id <= 0) {
         $errors[] = "Please select a <strong>course</strong>.";
     }
-    if (empty($session_name)) {
-        $errors[] = "Please select a <strong>session</strong>.";
-    }
     if (empty($mark_date)) {
         $errors[] = "Please select an <strong>attendance date</strong>.";
-    }
-    if ($session_id <= 0) {
-        $errors[] = "Invalid session selected.";
     }
 
     if (!empty($errors)) {
@@ -79,44 +71,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_session'])) {
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>';
     } else {
-        $check_sql = "SELECT SessionID FROM dbo.Attendance_Sessions 
-                      WHERE SessionID = ? AND CourseID = ? AND LecturerID = ?";
-        $check_stmt = sqlsrv_query($conn, $check_sql, [$session_id, $course_id, $lecturer_id]);
+        // Check if course is assigned to lecturer
+        $check_sql = "SELECT CourseID FROM dbo.Course_Assignments 
+                      WHERE CourseID = ? AND LecturerID = ? AND IsActive = 1";
+        $check_stmt = sqlsrv_query($conn, $check_sql, [$course_id, $lecturer_id]);
         
         if ($check_stmt === false) {
-            error_log("Check session error: " . print_r(sqlsrv_errors(), true));
-            $message = errorAlert("Database error while validating session.");
+            error_log("Check course error: " . print_r(sqlsrv_errors(), true));
+            $message = errorAlert("Database error while validating course.");
         } elseif (sqlsrv_has_rows($check_stmt) === false) {
-            $message = errorAlert("Invalid session selected.");
+            $message = errorAlert("Invalid course selected.");
         } else {
-            $ins_sql = "INSERT INTO dbo.Attendance_Mark (SessionID, [Date]) VALUES (?, ?)";
-            $ins_stmt = sqlsrv_query($conn, $ins_sql, [$session_id, $mark_date]);
-
-            if ($ins_stmt) {
-                $message = successAlert("Attendance session created successfully.");
-                header("Location: attendance_sessions.php?username=" . urlencode($username));
-                exit;
+            // Check if already exists for this date
+            $dup_sql = "SELECT MarkID FROM dbo.Attendance_Mark WHERE CourseID = ? AND [Date] = ?";
+            $dup_stmt = sqlsrv_query($conn, $dup_sql, [$course_id, $mark_date]);
+            
+            if ($dup_stmt && sqlsrv_has_rows($dup_stmt)) {
+                $message = errorAlert("Attendance record for this course and date already exists.");
             } else {
-                error_log("Insert error: " . print_r(sqlsrv_errors(), true));
-                $message = errorAlert("Failed to create attendance record.");
+                $ins_sql = "INSERT INTO dbo.Attendance_Mark (CourseID, [Date]) VALUES (?, ?)";
+                $ins_stmt = sqlsrv_query($conn, $ins_sql, [$course_id, $mark_date]);
+
+                if ($ins_stmt) {
+                    $message = successAlert("Attendance record created successfully.");
+                    header("Location: attendance_sessions.php?username=" . urlencode($username));
+                    exit;
+                } else {
+                    error_log("Insert error: " . print_r(sqlsrv_errors(), true));
+                    $message = errorAlert("Failed to create attendance record.");
+                }
             }
+            if (isset($dup_stmt) && $dup_stmt !== false) sqlsrv_free_stmt($dup_stmt);
         }
         if (isset($check_stmt) && $check_stmt !== false) sqlsrv_free_stmt($check_stmt);
         if (isset($ins_stmt) && $ins_stmt !== false) sqlsrv_free_stmt($ins_stmt);
     }
 }
 
-// Handle delete attendance mark (ONLY from Attendance_Mark)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_session'])) {
+// Handle delete attendance mark
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_attendance'])) {
     $mark_id = (int)$_POST['mark_id'];
 
     if ($mark_id <= 0) {
         $message = errorAlert("Invalid attendance record.");
     } else {
-        // Delete only from Attendance_Mark, no checks
+        // Verify ownership through Course_Assignments
         $delete_sql = "DELETE FROM dbo.Attendance_Mark 
                        WHERE MarkID = ? 
-                       AND SessionID IN (SELECT SessionID FROM dbo.Attendance_Sessions WHERE LecturerID = ?)";
+                       AND CourseID IN (SELECT CourseID FROM dbo.Course_Assignments WHERE LecturerID = ? AND IsActive = 1)";
         $delete_result = sqlsrv_query($conn, $delete_sql, [$mark_id, $lecturer_id]);
 
         if ($delete_result) {
@@ -131,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_session'])) {
 }
 
 // Fetch lecturer's assigned courses
-$courses_query = "SELECT DISTINCT c.CourseID, c.CourseCode, c.CourseName 
+$courses_query = "SELECT DISTINCT c.CourseID, c.CourseCode, c.CourseName, c.Department
                   FROM dbo.Courses c
                   JOIN dbo.Course_Assignments ca ON c.CourseID = ca.CourseID
                   WHERE ca.LecturerID = ? AND ca.IsActive = 1 AND c.IsActive = 1
@@ -149,35 +151,33 @@ while ($course = sqlsrv_fetch_array($courses_result, SQLSRV_FETCH_ASSOC)) {
 }
 sqlsrv_free_stmt($courses_result);
 
-// Fetch all sessions (with MarkID)
-$sessions_query = "
+// Fetch all attendance marks
+$marks_query = "
     SELECT am.MarkID,
-           am.[Date]          AS SessionDate,
+           am.[Date] AS AttendanceDate,
            am.MarkedTime,
-           s.SessionStartTime,
-           s.SessionEndTime,
-           s.Session,
+           am.EditedTime,
            c.CourseCode,
            c.CourseName,
-           s.SessionID,
-           s.CourseID
+           c.Department,
+           c.CourseID
     FROM dbo.Attendance_Mark am
-    JOIN dbo.Attendance_Sessions s ON am.SessionID = s.SessionID
-    JOIN dbo.Courses c ON s.CourseID = c.CourseID
-    WHERE s.LecturerID = ?
-    ORDER BY am.[Date] DESC, s.SessionStartTime DESC";
-$sessions_result = sqlsrv_query($conn, $sessions_query, [$lecturer_id]);
+    JOIN dbo.Courses c ON am.CourseID = c.CourseID
+    JOIN dbo.Course_Assignments ca ON c.CourseID = ca.CourseID
+    WHERE ca.LecturerID = ? AND ca.IsActive = 1
+    ORDER BY am.[Date] DESC, c.CourseCode";
+$marks_result = sqlsrv_query($conn, $marks_query, [$lecturer_id]);
 
-if ($sessions_result === false) {
-    error_log("Sessions query error: " . print_r(sqlsrv_errors(), true));
+if ($marks_result === false) {
+    error_log("Marks query error: " . print_r(sqlsrv_errors(), true));
     die("<p style='color:red;'>Database error: " . print_r(sqlsrv_errors(), true) . "</p>");
 }
 
-$all_sessions = [];
-while ($session = sqlsrv_fetch_array($sessions_result, SQLSRV_FETCH_ASSOC)) {
-    $all_sessions[] = $session;
+$all_marks = [];
+while ($mark = sqlsrv_fetch_array($marks_result, SQLSRV_FETCH_ASSOC)) {
+    $all_marks[] = $mark;
 }
-sqlsrv_free_stmt($sessions_result);
+sqlsrv_free_stmt($marks_result);
 
 // Render header with navigation
 renderHeader($username, $user_role, 'attendance');
@@ -185,7 +185,7 @@ renderHeader($username, $user_role, 'attendance');
 
 <!-- Page Content Starts Here -->
 <div class="mb-4 d-flex justify-content-between align-items-center">
-    <h1 class="h2"><i class="fas fa-calendar-alt me-2"></i>Attendance Sessions</h1>
+    <h1 class="h2"><i class="fas fa-calendar-check me-2"></i>Attendance Records</h1>
     <a class="nav-link" href="http://127.0.0.1:8000/lecturer-dashboard/">
         <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
     </a>
@@ -193,16 +193,16 @@ renderHeader($username, $user_role, 'attendance');
 
 <?php if (isset($message)) echo $message; ?>
 
-<!-- Create Session Button -->
-<button type="button" class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#createSessionModal">
-    <i class="fas fa-plus-circle me-2"></i>Create New Session
+<!-- Create Attendance Button -->
+<button type="button" class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#createAttendanceModal">
+    <i class="fas fa-plus-circle me-2"></i>Create New Attendance Record
 </button>
 
-<!-- ENHANCED FILTERS -->
+<!-- FILTERS -->
 <div class="card mb-3 shadow-sm">
     <div class="card-body">
         <div class="row g-3 align-items-end">
-            <div class="col-md-5">
+            <div class="col-md-10">
                 <label class="form-label fw-semibold">
                     <i class="fas fa-book me-1"></i>Filter by Course
                 </label>
@@ -215,14 +215,6 @@ renderHeader($username, $user_role, 'attendance');
                     <?php } ?>
                 </select>
             </div>
-            <div class="col-md-5">
-                <label class="form-label fw-semibold">
-                    <i class="fas fa-chalkboard-teacher me-1"></i>Filter by Session
-                </label>
-                <select class="form-select" id="filterSession" disabled>
-                    <option value="">All Sessions</option>
-                </select>
-            </div>
             <div class="col-md-2">
                 <button type="button" class="btn btn-outline-secondary w-100" id="clearFilter">
                     <i class="fas fa-redo me-1"></i> Reset
@@ -232,10 +224,10 @@ renderHeader($username, $user_role, 'attendance');
     </div>
 </div>
 
-<!-- Sessions Table -->
+<!-- Attendance Records Table -->
 <div class="card shadow-sm">
     <div class="card-header bg-white border-bottom">
-        <h5 class="mb-0"><i class="fas fa-list me-2"></i>All Sessions</h5>
+        <h5 class="mb-0"><i class="fas fa-list me-2"></i>All Attendance Records</h5>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -243,13 +235,12 @@ renderHeader($username, $user_role, 'attendance');
                 <thead class="table-light">
                     <tr>
                         <th class="px-4 py-3">Course</th>
-                        <th class="py-3">Session</th>
+                        <th class="py-3">Department</th>
                         <th class="py-3">Date</th>
-                        <th class="py-3">Time</th>
-                        <th class="text-center py-3" style="width: 180px;">Actions</th>
+                        <th class="text-center py-3" style="width: 200px;">Actions</th>
                     </tr>
                 </thead>
-                <tbody id="sessionsBody">
+                <tbody id="marksBody">
                     <!-- Filled by JavaScript -->
                 </tbody>
             </table>
@@ -257,57 +248,44 @@ renderHeader($username, $user_role, 'attendance');
     </div>
 </div>
 
-<!-- Create Session Modal -->
-<div class="modal fade" id="createSessionModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<!-- Create Attendance Modal -->
+<div class="modal fade" id="createAttendanceModal" tabindex="-1">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Create Attendance Session</h5>
+                <h5 class="modal-title">
+                    <i class="fas fa-calendar-plus me-2"></i>Create Attendance Record
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="attendance_sessions.php?username=<?php echo urlencode($username); ?>">
                 <div class="modal-body">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Course <span class="text-danger">*</span></label>
-                            <select class="form-control" id="courseSelect" name="course_id" required onchange="loadSessions()">
-                                <option value="">-- Select Course --</option>
-                                <?php foreach ($courses as $course) { ?>
-                                    <option value="<?php echo $course['CourseID']; ?>">
-                                        <?php echo htmlspecialchars($course['CourseCode'] . ' - ' . $course['CourseName']); ?>
-                                    </option>
-                                <?php } ?>
-                            </select>
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label">Course <span class="text-danger">*</span></label>
+                        <select class="form-control" name="course_id" required>
+                            <option value="">-- Select Course --</option>
+                            <?php foreach ($courses as $course) { ?>
+                                <option value="<?php echo $course['CourseID']; ?>">
+                                    <?php echo htmlspecialchars($course['CourseCode'] . ' - ' . $course['CourseName']); ?>
+                                </option>
+                            <?php } ?>
+                        </select>
+                    </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label">Attendance Date <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" id="markDate" name="mark_date" required>
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label">Attendance Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" name="mark_date" required>
+                    </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label">Session <span class="text-danger">*</span></label>
-                            <select class="form-control" id="sessionSelect" name="session_name" required disabled>
-                                <option value="">-- Select Course First --</option>
-                            </select>
-                        </div>
-
-                        <input type="hidden" name="session_id" id="hiddenSessionId">
-                        
-                        <div class="col-md-6">
-                            <label class="form-label">Time</label>
-                            <input type="text" class="form-control" id="displayTime" readonly placeholder="Will show after selection">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Location</label>
-                            <input type="text" class="form-control" id="displayLocation" readonly placeholder="Will show after selection">
-                        </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <small>This will create a new attendance record. You can mark student attendance after creation.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" name="create_session" class="btn btn-success" disabled>
-                        Create Session
+                    <button type="submit" name="create_attendance" class="btn btn-success">
+                        <i class="fas fa-check me-2"></i>Create
                     </button>
                 </div>
             </form>
@@ -316,73 +294,9 @@ renderHeader($username, $user_role, 'attendance');
 </div>
 
 <script>
-// === MODAL: Load sessions for selected course ===
-function loadSessions() {
-    const courseId      = document.getElementById('courseSelect').value;
-    const sessionSelect = document.getElementById('sessionSelect');
-    const hiddenId      = document.getElementById('hiddenSessionId');
-    const timeDisplay   = document.getElementById('displayTime');
-    const locDisplay    = document.getElementById('displayLocation');
-    const createBtn     = document.querySelector('#createSessionModal .btn-success');
-
-    sessionSelect.innerHTML = '<option value="">-- Loading... --</option>';
-    sessionSelect.disabled = true;
-    hiddenId.value = '';
-    timeDisplay.value = '';
-    locDisplay.value = '';
-    createBtn.disabled = true;
-
-    if (!courseId) {
-        sessionSelect.innerHTML = '<option value="">-- Select Course First --</option>';
-        return;
-    }
-
-    fetch(`get_sessions_for_mark.php?course_id=${courseId}&username=<?php echo addslashes($username); ?>`)
-        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .then(data => {
-            sessionSelect.innerHTML = '<option value="">-- Select Session --</option>';
-
-            if (data.success && data.sessions.length > 0) {
-                data.sessions.forEach(s => {
-                    const opt = document.createElement('option');
-                    opt.value = s.Session;
-                    opt.textContent = s.Session;
-                    opt.dataset.id = s.SessionID;
-                    opt.dataset.time = `${s.SessionStartTime} - ${s.SessionEndTime}`;
-                    opt.dataset.location = s.Location || '';
-                    sessionSelect.appendChild(opt);
-                });
-                sessionSelect.disabled = false;
-            } else {
-                sessionSelect.innerHTML = '<option value="">No sessions found</option>';
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            sessionSelect.innerHTML = '<option value="">Error loading</option>';
-        });
-}
-
-// Enable Create button
-document.getElementById('createSessionModal').addEventListener('input', function () {
-    const courseOk   = document.getElementById('courseSelect').value;
-    const sessionOk  = document.getElementById('sessionSelect').value;
-    const dateOk     = document.getElementById('markDate').value;
-    const createBtn  = this.querySelector('.btn-success');
-    createBtn.disabled = !(courseOk && sessionOk && dateOk);
-});
-
-// Fill hidden ID + display
-document.getElementById('sessionSelect').addEventListener('change', function () {
-    const sel = this.options[this.selectedIndex];
-    document.getElementById('hiddenSessionId').value = sel.dataset.id || '';
-    document.getElementById('displayTime').value     = sel.dataset.time || '';
-    document.getElementById('displayLocation').value = sel.dataset.location || '';
-});
-
 // === TABLE RENDERING & FILTERING ===
-const allRows = <?php echo json_encode($all_sessions); ?>;
-const tbody   = document.getElementById('sessionsBody');
+const allRows = <?php echo json_encode($all_marks); ?>;
+const tbody   = document.getElementById('marksBody');
 
 function escapeHtml(str) {
     if (!str) return '';
@@ -397,42 +311,52 @@ function formatDate(dateObj) {
     return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
 }
 
-function formatTime(timeObj) {
-    if (!timeObj || !timeObj.date) return '—';
-    const t = new Date(timeObj.date);
-    return t.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
-}
-
-function renderRow(s) {
-    const marked = s.MarkedTime !== null;
-    const btnClass = marked ? 'btn-primary' : 'btn-success';
-    const btnIcon  = marked ? 'fa-edit' : 'fa-clock';
-    const btnText  = marked ? 'Edit' : 'Mark';
+function renderRow(m) {
+    const marked = m.MarkedTime !== null;
+    const edited = m.EditedTime !== null;
+    
+    let btnClass, btnText, btnIcon;
+    
+    if (!marked) {
+        // Not yet marked
+        btnClass = 'btn-success';
+        btnText = 'Mark';
+        btnIcon = 'fa-clipboard-check';
+    } else if (edited) {
+        // Marked and edited
+        btnClass = 'btn-primary';
+        btnText = 'Edit';
+        btnIcon = 'fa-edit';
+    } else {
+        // Just marked
+        btnClass = 'btn-primary';
+        btnText = 'Edit';
+        btnIcon = 'fa-edit';
+    }
 
     return `
-        <tr data-course="${s.CourseID}" data-session="${s.SessionID}">
+        <tr data-course="${m.CourseID}">
             <td class="px-4 py-3">
-                <div class="fw-semibold">${escapeHtml(s.CourseCode)}</div>
-                <small class="text-muted">${escapeHtml(s.CourseName)}</small>
+                <div class="fw-semibold">${escapeHtml(m.CourseCode)}</div>
+                <small class="text-muted">${escapeHtml(m.CourseName)}</small>
             </td>
             <td class="py-3">
-                <span class="badge bg-primary px-3 py-2">${escapeHtml(s.Session ?? '—')}</span>
+                <small class="text-muted">${escapeHtml(m.Department)}</small>
             </td>
-            <td class="py-3">${formatDate(s.SessionDate)}</td>
             <td class="py-3">
-                <small>${formatTime(s.SessionStartTime)} - ${formatTime(s.SessionEndTime)}</small>
+                <strong>${formatDate(m.AttendanceDate)}</strong>
             </td>
             <td class="text-center py-3">
                 <div class="btn-group" role="group">
                     <a href="mark_attendance.php?username=<?php echo urlencode($username); ?>
-                        &session_id=${s.SessionID}&mark_id=${s.MarkID}"
+                        &course_id=${m.CourseID}&mark_id=${m.MarkID}"
                        class="btn ${btnClass} btn-sm" title="${btnText} Attendance">
                         <i class="fas ${btnIcon} me-1"></i>${btnText}
                     </a>
                     <form method="POST" style="display:inline;" 
-                          onsubmit="return confirm('Delete this attendance record? This will remove the mark for this date.');">
-                        <input type="hidden" name="mark_id" value="${s.MarkID}">
-                        <button type="submit" name="delete_session"
+                          onsubmit="return confirm('Delete this attendance record? All student attendance data for this date will be removed.');">
+                        <input type="hidden" name="mark_id" value="${m.MarkID}">
+                        <button type="submit" name="delete_attendance"
                                 class="btn btn-outline-danger btn-sm" 
                                 title="Delete attendance record">
                             <i class="fas fa-trash-alt"></i>
@@ -445,7 +369,7 @@ function renderRow(s) {
 
 function renderAll() {
     if (allRows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-5">
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-5">
                               <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
                               No attendance records created yet.
                            </td></tr>`;
@@ -456,60 +380,26 @@ function renderAll() {
 renderAll();
 
 // === FILTER LOGIC ===
-const filterCourse   = document.getElementById('filterCourse');
-const filterSession  = document.getElementById('filterSession');
-const clearBtn       = document.getElementById('clearFilter');
+const filterCourse = document.getElementById('filterCourse');
+const clearBtn = document.getElementById('clearFilter');
 
 filterCourse.addEventListener('change', applyFilters);
-filterSession.addEventListener('change', applyFilters);
 clearBtn.addEventListener('click', () => {
     filterCourse.value = '';
-    filterSession.innerHTML = '<option value="">All Sessions</option>';
-    filterSession.disabled = true;
     applyFilters();
 });
 
-filterCourse.addEventListener('change', function () {
-    const cid = this.value;
-    filterSession.disabled = true;
-    filterSession.innerHTML = '<option value="">Loading…</option>';
-
-    if (!cid) {
-        filterSession.innerHTML = '<option value="">All Sessions</option>';
-        filterSession.disabled = true;
-        return;
-    }
-
-    fetch(`get_sessions_for_mark.php?course_id=${cid}&username=<?php echo addslashes($username); ?>`)
-        .then(r => r.json())
-        .then(data => {
-            filterSession.innerHTML = '<option value="">All Sessions</option>';
-            if (data.success && data.sessions.length) {
-                data.sessions.forEach(s => {
-                    const opt = new Option(s.Session, s.SessionID);
-                    filterSession.appendChild(opt);
-                });
-            } else {
-                filterSession.innerHTML = '<option value="">No sessions</option>';
-            }
-            filterSession.disabled = false;
-        });
-});
-
 function applyFilters() {
-    const courseId   = filterCourse.value;
-    const sessionId  = filterSession.value;
+    const courseId = filterCourse.value;
 
     const filtered = allRows.filter(row => {
-        const matchCourse  = !courseId || row.CourseID == courseId;
-        const matchSession = !sessionId || row.SessionID == sessionId;
-        return matchCourse && matchSession;
+        return !courseId || row.CourseID == courseId;
     });
 
     if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-5">
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-5">
                               <i class="fas fa-search fa-2x mb-2 d-block"></i>
-                              No sessions match the selected filters.
+                              No records match the selected filters.
                            </td></tr>`;
         return;
     }
