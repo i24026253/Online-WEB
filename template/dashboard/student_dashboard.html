@@ -1,12 +1,25 @@
 {% extends 'base.html' %}
-
 {% block title %}Student Dashboard - Attendance System{% endblock %}
 
 {% block authenticated_content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">
         <i class="fas fa-tachometer-alt me-2"></i>Student Dashboard - Welcome, {{ first_name }} {{ last_name }}!
     </h1>
+    <!-- ✅ Alert Icon -->
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-outline-warning position-relative" id="alertBellBtn" onclick="toggleAlertModal()">
+            <i class="fas fa-bell fa-lg"></i>
+            {% if low_attendance_alerts %}
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="alertBadge">
+                {{ low_attendance_alerts|length }}
+                <span class="visually-hidden">unread alerts</span>
+            </span>
+            {% endif %}
+        </button>
+    </div>
 </div>
 
 <!-- Messages -->
@@ -20,9 +33,53 @@
     {% endfor %}
 {% endif %}
 
+<!-- ✅ Alert Display -->
+<div id="alertModal" class="alert-modal {% if low_attendance_alerts %}show-modal{% endif %}"></div>
+    <div class="alert-modal-content">
+        <div class="alert-modal-header">
+            <h4>
+                <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                Low Attendance Warnings
+            </h4>
+            <button type="button" class="alert-close-btn" onclick="closeAlertModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="alert-modal-body">
+            {% if low_attendance_alerts %}
+            <p class="mb-3">You have <strong id="alertCount">{{ low_attendance_alerts|length }}</strong> unread alert(s):</p>
+            <div class="alert-list">
+                {% for alert in low_attendance_alerts %}
+                <div class="alert-item" id="alert-{{ alert.alert_id }}">
+                    <div class="alert-item-header">
+                        <span class="badge bg-danger">{{ alert.alert_type }}</span>
+                        <small class="text-muted">{{ alert.created_date|date:"M d, Y H:i" }}</small>
+                    </div>
+                    <div class="alert-item-body">
+                        <strong>{{ alert.course_code }} - {{ alert.course_name }}</strong>
+                        <p>{{ alert.message }}</p>
+                    </div>
+                    <div class="alert-item-footer">
+                        <button type="button" class="btn btn-sm btn-primary mark-read-btn" data-alert-id="{{ alert.alert_id }}">
+                            <i class="fas fa-check me-1"></i>Mark as Read
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-3">
+                <i class="fas fa-check-circle fa-3x text-success mb-2"></i>
+                <p class="text-muted">No unread alerts</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
 <!-- Statistics Cards -->
 <div class="row mb-4">
-    <div class="col-md-4">
+    <div class="col-md-6">
         <div class="card stat-card card-primary h-100">
             <div class="card-body text-center">
                 <i class="fas fa-book fa-3x text-primary mb-3"></i>
@@ -31,21 +88,90 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-6">
         <div class="card stat-card card-success h-100">
             <div class="card-body text-center">
                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
-                <h5>{{ average_attendance|default:0 }}%</h5>
-                <p class="text-muted">Attendance Rate</p>
+                <h5>{{ overall_attendance_rate|default:0|floatformat:2 }}%</h5>
+                <p class="text-muted">Overall Attendance Rate</p>
+                <small class="text-muted">(Average across all courses)</small>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card stat-card card-info h-100">
-            <div class="card-body text-center">
-                <i class="fas fa-calendar fa-3x text-info mb-3"></i>
-                <h5>{{ classes_attended|default:0 }}</h5>
-                <p class="text-muted">Classes Attended</p>
+</div>
+
+<!-- Attendance statistics chart -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>My Attendance Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Overall Attendance Chart -->
+                    <div class="col-md-6 mb-4">
+                        <h6 class="text-center mb-3">Overall Attendance Rate</h6>
+                        <div class="d-flex justify-content-center align-items-center" style="height: 300px;">
+                            <canvas id="attendanceChart"></canvas>
+                        </div>
+                        <h3 class="text-primary text-center mt-3">{{ overall_attendance_rate|default:0|floatformat:2 }}%</h3>
+                        <p class="text-center text-muted small">Average across all enrolled courses</p>
+                    </div>
+                    
+                    <!-- Course Attendance Chart -->
+                    <div class="col-md-6 mb-4">
+                        <h6 class="text-center mb-3">Attendance Rate by Course</h6>
+                        <div class="d-flex justify-content-center align-items-center" style="height: 300px;">
+                            <canvas id="courseAttendanceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Course Attendance Table -->
+                <div class="row mt-5">
+                    <div class="col-md-12">
+                        <h6 class="mb-3"><i class="fas fa-list me-2"></i>Attendance Rate of Each Course</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th><i class="fas fa-book me-1"></i>Course</th>
+                                        <th><i class="fas fa-percentage me-1"></i>Attendance</th>
+                                        <th><i class="fas fa-signal me-1"></i>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for course in enrolled_courses %}
+                                        {% if course.Status == 'Active' %}
+                                        <tr>
+                                            <td>{{ course.CourseName }}</td>
+                                            <td>
+                                                <span class="badge {% if course.percentage >= 75 %}bg-success{% elif course.percentage >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                                    {{ course.percentage|default:0|floatformat:2 }}%
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {% if course.percentage >= 75 %}
+                                                    <span class="text-success"><i class="fas fa-check-circle me-1"></i>Good</span>
+                                                {% elif course.percentage >= 50 %}
+                                                    <span class="text-warning"><i class="fas fa-exclamation-circle me-1"></i>Need Improvement</span>
+                                                {% else %}
+                                                    <span class="text-danger"><i class="fas fa-times-circle me-1"></i>Critical</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="3" class="text-muted text-center">No course data available.</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -56,17 +182,21 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h5>My Schedule & Attendance</h5>
-                <a href="http://localhost/php_module/enrol.php?username={{ username }}" class="btn btn-outline-success btn-sm float-end">
-                    <i class="fas fa-plus-circle me-2"></i>Enroll in a Course
+                <h5><i class="fas fa-calendar-alt me-2"></i>Enrolled Courses</h5>
+                <a href="http://localhost:8080/php_module/enrol.php?username={{ username }}" class="btn btn-outline-success btn-sm float-end">
+                    <i class="fas fa-plus-circle me-2"></i>Enroll/Drop a Course
                 </a>
             </div>
             <div class="card-body">
-                <p>Your enrolled courses and schedule.</p>
                 <div class="table-responsive">
                     <table class="table table-hover">
-                        <thead>
-                            <tr><th>Course Code</th><th>Course Name</th><th>Enrollment Date</th><th>Status</th></tr>
+                        <thead class="table-light">
+                            <tr>
+                                <th>Course Code</th>
+                                <th>Course Name</th>
+                                <th>Enrollment Date</th>
+                                <th>Status</th>
+                            </tr>
                         </thead>
                         <tbody>
                             {% for course in enrolled_courses %}
@@ -76,14 +206,7 @@
                                     <td>{{ course.EnrollmentDate|date:"M d, Y" }}</td>
                                     <td>
                                         <span class="badge bg-{% if course.Status == 'Active' %}success{% elif course.Status == 'Pending Enroll' %}warning{% elif course.Status == 'Pending Drop' %}danger{% else %}secondary{% endif %}">
-                                            {{ course.Status }}
-                                            {% if course.Status == 'Active' and course.DropRejectionReason %}
-                                                <small>(Drop Rejected: {{ course.DropRejectionReason }})</small>
-                                            {% elif course.Status == 'Rejected' and course.RejectionReason %}
-                                                <small>({{ course.RejectionReason }})</small>
-                                            {% elif course.Status == 'Dropped' %}
-                                                <small>(Dropped)</small>
-                                            {% endif %}
+                                           {{ course.Status }}
                                         </span>
                                     </td>
                                 </tr>
@@ -97,4 +220,508 @@
         </div>
     </div>
 </div>
+
+<!-- Hidden data for JavaScript -->
+<div id="course-data" style="display: none;">
+{% for course in enrolled_courses %}
+    {% if course.Status == 'Active' %}
+    <span class="course-item"
+          data-name="{{ course.CourseName }}"
+          data-percentage="{{ course.percentage|default:0 }}"></span>
+    {% endif %}
+{% endfor %}
+</div>
+
+<style>
+/* ✅ Alert Modal Styles */
+.alert-modal {
+    position: fixed;
+    z-index: 1050;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    animation: fadeIn 0.3s;
+}
+
+.alert-modal-content {
+    background-color: #fff;
+    margin: 5% auto;
+    width: 90%;
+    max-width: 600px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    animation: slideDown 0.3s;
+}
+
+.alert-modal-header {
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px 10px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.alert-modal-header h4 {
+    margin: 0;
+}
+
+.alert-close-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.3s;
+}
+
+.alert-close-btn:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.alert-modal-body {
+    padding: 20px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.alert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.alert-item {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    transition: all 0.3s ease-out;
+}
+
+.alert-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transform: translateX(5px);
+}
+
+.alert-item-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.alert-item-body {
+    margin-bottom: 10px;
+}
+
+.alert-item-body strong {
+    color: #667eea;
+}
+
+.alert-item-body p {
+    margin: 5px 0 0 0;
+    color: #6c757d;
+}
+
+.alert-item-footer {
+    text-align: right;
+}
+
+/* ✅ Success Notification */
+.success-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #27ae60;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1070;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s;
+}
+
+.success-notification.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ✅ Error Notification */
+.error-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #e74c3c;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1070;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s;
+}
+
+.error-notification.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ✅ Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Existing styles */
+#attendanceChart, #courseAttendanceChart {
+    max-width: 100%;
+    max-height: 300px;
+}
+
+.card {
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-3px);
+}
+
+.stat-card {
+    border-left: 4px solid;
+    transition: transform 0.3s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.card-primary { border-left-color: #3498db; }
+.card-success { border-left-color: #27ae60; }
+.card-info { border-left-color: #17a2b8; }
+</style>
+
+<!-- Chart.js Script -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+console.log('Script loaded - checking alerts...');
+
+
+function toggleAlertModal() {
+    console.log('Toggle modal called');
+    const modal = document.getElementById('alertModal');
+    if (modal) {
+        const isHidden = modal.style.display === 'none' || modal.style.display === '';
+        modal.style.display = isHidden ? 'block' : 'none';
+        console.log('Modal display changed to:', modal.style.display);
+    }
+}
+
+function closeAlertModal() {
+    console.log('Close modal called');
+    const modal = document.getElementById('alertModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// ✅ Mark alert as read function
+function markAlertAsRead(alertId, button) {
+    console.log('Mark as read called for alert:', alertId);
+    
+    if (!alertId || !button) {
+        console.error('Missing alertId or button element');
+        return;
+    }
+    
+    // Disable button and show loading
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Processing...';
+
+    const url = 'http://localhost:8080/php_module/mark_alert_read.php';
+    const formData = new URLSearchParams();
+    formData.append('alert_id', alertId);
+    
+    console.log('Sending POST to:', url);
+    console.log('FormData:', formData.toString());
+
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString()
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Data received:', data);
+        
+        if (data.success) {
+            console.log('Success! Removing alert from UI...');
+            
+            // Remove alert item from UI with smooth animation
+            const alertItem = document.getElementById('alert-' + alertId);
+            console.log('Alert item found:', alertItem);
+            
+            if (alertItem) {
+                alertItem.style.transition = 'all 0.3s ease-out';
+                alertItem.style.opacity = '0';
+                alertItem.style.transform = 'translateX(20px)';
+                
+                setTimeout(() => {
+                    alertItem.remove();
+                    console.log('Alert removed from DOM');
+                    
+                    // Update alert count
+                    const remainingAlerts = document.querySelectorAll('.alert-item');
+                    console.log('Remaining alerts:', remainingAlerts.length);
+                    
+                    const alertCount = document.getElementById('alertCount');
+                    if (alertCount) {
+                        alertCount.textContent = remainingAlerts.length;
+                    }
+                    
+                    // Update bell badge
+                    const badge = document.getElementById('alertBadge');
+                    console.log('Badge element:', badge);
+                    
+                    if (remainingAlerts.length === 0) {
+                        if (badge) {
+                            badge.remove();
+                            console.log('Badge removed');
+                        }
+                        
+                        // Close modal and show success message
+                        setTimeout(() => {
+                            closeAlertModal();
+                            showSuccessNotification('All alerts cleared!');
+                        }, 300);
+                        
+                        // Show no alerts message
+                        const modalBody = document.querySelector('.alert-modal-body');
+                        if (modalBody) {
+                            modalBody.innerHTML = `
+                                <div class="text-center py-5">
+                                    <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                                    <p class="text-muted mb-0">No unread alerts</p>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        if (badge) {
+                            badge.textContent = remainingAlerts.length;
+                            console.log('Badge updated to:', remainingAlerts.length);
+                        }
+                    }
+                }, 300);
+            }
+            
+            // Show success notification
+            showSuccessNotification('Alert marked as read');
+        } else {
+            console.error('Server returned error:', data.message);
+            // Re-enable button on failure
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-check me-1"></i>Mark as Read';
+            showErrorNotification('Failed: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        // Re-enable button on error
+        button.disabled = false;
+        button.innerHTML = '<i class="fas fa-check me-1"></i>Mark as Read';
+        showErrorNotification('Network error: ' + error.message);
+    });
+}
+
+// ✅ Success notification
+function showSuccessNotification(message) {
+    console.log('Showing success notification:', message);
+    const notification = document.createElement('div');
+    notification.className = 'success-notification';
+    notification.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => notification.classList.add('show'), 10);
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 2000);
+}
+
+// ✅ Error notification
+function showErrorNotification(message) {
+    console.log('Showing error notification:', message);
+    const notification = document.createElement('div');
+    notification.className = 'error-notification';
+    notification.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>' + message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => notification.classList.add('show'), 10);
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// ✅ Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM Content Loaded');
+    
+    // Check for alert modal
+    const modal = document.getElementById('alertModal');
+    console.log('Alert modal found:', !!modal);
+    
+    // Attach event listeners to all mark as read buttons
+    const markReadButtons = document.querySelectorAll('.mark-read-btn');
+    console.log('Found', markReadButtons.length, 'mark as read buttons');
+    
+    markReadButtons.forEach((button, index) => {
+        console.log('Attaching listener to button', index);
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const alertId = this.getAttribute('data-alert-id');
+            console.log('Button clicked! Alert ID:', alertId);
+            markAlertAsRead(alertId, this);
+        });
+    });
+    
+    // Chart initialization
+    var ctx = document.getElementById('attendanceChart');
+    if (ctx) {
+        var percentage = parseFloat('{{ overall_attendance_rate|default:"0" }}') || 0;
+       
+        new Chart(ctx.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Present', 'Absent'],
+                datasets: [{
+                    data: [percentage, 100 - percentage],
+                    backgroundColor: ['#27ae60', '#e74c3c'],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: 1,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 15,
+                            font: { size: 12 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.label + ': ' + context.parsed.toFixed(2) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Course Attendance Bar Chart
+    var courseCtx = document.getElementById('courseAttendanceChart');
+    if (courseCtx) {
+        var courseLabels = [];
+        var coursePercentages = [];
+       
+        var courseItems = document.querySelectorAll('.course-item');
+        courseItems.forEach(function(item) {
+            var name = item.getAttribute('data-name');
+            var percentage = parseFloat(item.getAttribute('data-percentage')) || 0;
+           
+            if (name.length > 20) {
+                name = name.substring(0, 17) + '...';
+            }
+           
+            courseLabels.push(name);
+            coursePercentages.push(percentage);
+        });
+       
+        var backgroundColors = coursePercentages.map(function(perc) {
+            if (perc >= 75) return '#27ae60';
+            else if (perc >= 50) return '#f39c12';
+            else return '#e74c3c';
+        });
+        
+        new Chart(courseCtx.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: courseLabels,
+                datasets: [{
+                    label: 'Attendance Rate (%)',
+                    data: coursePercentages,
+                    backgroundColor: backgroundColors,
+                    borderColor: '#2c3e50',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: 1,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Attendance: ' + context.parsed.y.toFixed(2) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+
 {% endblock %}
+

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -100,18 +101,24 @@
                         <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-graduation-cap me-2"></i>Students</a></li>
                         <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-chalkboard-teacher me-2"></i>Lecturers</a></li>
                         <li class="nav-item">
-                            <a class="nav-link" href="http://localhost/php_module/courses.php?username={{ username }}">
+                            <a class="nav-link" href="http://localhost:8080/php_module/courses.php?username={{ username }}">
                                 <i class="fas fa-book me-2"></i>Courses
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="http://localhost/php_module/pending_approvals.php?username={{ username }}">
+                            <a class="nav-link" href="http://localhost:8080/php_module/pending_approvals.php?username={{ username }}">
                                 <i class="fas fa-clipboard-check me-2"></i>Pending Approvals
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="http://localhost/php_module/semesters.php?username={{ username }}">
+                            <a class="nav-link" href="http://localhost:8080/php_module/semesters.php?username={{ username }}">
                                 <i class="fas fa-calendar-alt me-2"></i>Semesters
+                            </a>
+                        </li>
+                        
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'reports' %}active{% endif %}" href="{% url 'reports' %}">
+                                <i class="fas fa-chart-bar me-2"></i>Reports
                             </a>
                         </li>
                     </ul>
@@ -126,7 +133,12 @@
                         </li>
                         <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-book me-2"></i>My Courses</a></li>
                         <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-calendar-check me-2"></i>Attendance</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-chart-bar me-2"></i>Reports</a></li>
+                        
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.url_name == 'reports' %}active{% endif %}" href="{% url 'reports' %}">
+                                <i class="fas fa-chart-bar me-2"></i>Reports
+                            </a>
+                        </li>
                     </ul>
 
                     {% elif user_role == 'student' %}
@@ -138,7 +150,7 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="http://localhost/php_module/enrol.php?username={{ username }}">
+                            <a class="nav-link" href="http://localhost:8080/php_module/enrol.php?username={{ username }}">
                                 <i class="fas fa-book me-2"></i>My Courses
                             </a>
                         </li>

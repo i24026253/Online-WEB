@@ -20,6 +20,7 @@ urlpatterns = [
     path('admin-dashboard/', auth_views.admin_dashboard, name='admin_dashboard'),
     path('lecturer-dashboard/', auth_views.lecturer_dashboard, name='lecturer_dashboard'),
     path('student-dashboard/', auth_views.student_dashboard, name='student_dashboard'),
+    path('reports/', auth_views.reports_view, name='reports'),
 ]
 
 # Serve static and media files in development

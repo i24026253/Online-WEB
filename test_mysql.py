@@ -3,8 +3,8 @@ import pyodbc
 # Connection string based on your Django settings
 conn_str = (
     r'DRIVER={ODBC Driver 17 for SQL Server};'
-    r'SERVER=LAPTOP-8O7OUMB4;'
-    r'DATABASE=WebGrpData;'
+    r'SERVER=localhost,1434;'
+    r'DATABASE=AttendanceManagementDB;'
     r'Trusted_Connection=yes;'
 )
 

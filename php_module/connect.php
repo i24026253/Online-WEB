@@ -4,9 +4,9 @@
 // ============================================
 
 // Your local SQL Server instance and database
-$serverName = "LAPTOP-8O7OUMB4"; // <-- use your actual instance name
+$serverName = "localhost,1434"; // <-- use your actual instance name
 $connectionOptions = array(
-    "Database" => "WebGrpData", // same as Django NAME
+    "Database" => "AttendanceManagementDB", // same as Django NAME
     "TrustServerCertificate" => true,
     "Encrypt" => false, // disable SSL for local development
 );
@@ -21,4 +21,4 @@ if ($conn) {
     error_log("❌ Connection failed!\n");
     error_log(print_r(sqlsrv_errors(), true) . "\n");
 }
-?>
+?> 
