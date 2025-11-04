@@ -132,13 +132,16 @@
                             </a>
                         </li>
                         <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-book me-2"></i>My Courses</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-calendar-check me-2"></i>Attendance</a></li>
-                        
                         <li class="nav-item">
-                            <a class="nav-link {% if request.resolver_match.url_name == 'reports' %}active{% endif %}" href="{% url 'reports' %}">
-                                <i class="fas fa-chart-bar me-2"></i>Reports
+                           <a class="nav-link" href="http://localhost:8080/php_module/mark_attendance.php?username={{ username }}">
+                                <i class="fas fa-calendar-check me-2"></i>Attendance
                             </a>
-                        </li>
+                        </li>            
+                        <li class="nav-item">
+                           <a class="nav-link {% if request.resolver_match.url_name == 'reports' %}active{% endif %}" href="{% url 'reports' %}">
+                               <i class="fas fa-chart-bar me-2"></i>Reports
+                           </a>
+                        </li>  
                     </ul>
 
                     {% elif user_role == 'student' %}

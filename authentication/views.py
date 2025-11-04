@@ -221,10 +221,13 @@ def lecturer_dashboard(request):
 
     total_courses = 0
     total_students = 0
+
     total_sessions = 0
     sessions_this_week = 0
     my_courses = []
     recent_sessions = []
+    attendance_records_count = 0
+
 
     try:
         conn = pyodbc.connect(
@@ -235,16 +238,17 @@ def lecturer_dashboard(request):
         )
         cursor = conn.cursor()
         
+
         cursor.execute("""
-            SELECT LecturerID 
+            SELECT l.LecturerID 
             FROM dbo.Lecturers l 
             JOIN dbo.Users u ON l.UserID = u.UserID 
             WHERE u.Username = ?
         """, (username,))
         lecturer_row = cursor.fetchone()
-        lecturer_id = lecturer_row[0] if lecturer_row else None
         
-        if lecturer_id:
+        if lecturer_row:
+            lecturer_id = lecturer_row[0]
             # Total courses teaching
             cursor.execute("""
                 SELECT COUNT(*) 
@@ -272,6 +276,16 @@ def lecturer_dashboard(request):
             """, (lecturer_id,))
             total_sessions = cursor.fetchone()[0]
             
+            # Count attendance marks created this week
+            from datetime import datetime, timedelta
+            week_start = datetime.now() - timedelta(days=datetime.now().weekday())
+            cursor.execute("""
+                SELECT COUNT(*)
+                FROM dbo.Attendance_Mark am
+                JOIN dbo.Course_Assignments ca ON am.CourseID = ca.CourseID
+                WHERE ca.LecturerID = ? AND am.[Date] >= ?
+            """, (lecturer_id, week_start))
+            attendance_records_count = cursor.fetchone()[0]
             
             # Detailed course information
             cursor.execute("""
@@ -368,13 +382,14 @@ def lecturer_dashboard(request):
         'sessions_this_week': sessions_this_week,
         'my_courses': my_courses,
         'recent_sessions': recent_sessions,
+        'attendance_records_count': attendance_records_count,
+
     }
     
     return render(request, 'dashboard/lecturer_dashboard.html', context)
 
-
-# 🔹 STUDENT DASHBOARD 
-# 🔹 STUDENT DASHBOARD - ✅ IMPROVED ALERT LOGIC
+  
+  # 🔹 STUDENT DASHBOARD
 def student_dashboard(request):
     username = request.session.get('username') or request.GET.get('username', 'Unknown')
     role = request.session.get('role', 'unknown')
@@ -442,10 +457,8 @@ def student_dashboard(request):
             SELECT c.CourseID, c.CourseCode, c.CourseName, e.EnrollmentDate, e.Status
             FROM dbo.Enrollments e
             JOIN dbo.Courses c ON e.CourseID = c.CourseID
-            JOIN dbo.Students s ON e.StudentID = s.StudentID
-            JOIN dbo.Users u ON s.UserID = u.UserID
-            WHERE u.Username = ?
-        """, (username,))
+            WHERE e.StudentID = ?
+        """, (student_id,))
         enrolled_courses = [
             {
                 'CourseID': row.CourseID,
@@ -453,6 +466,9 @@ def student_dashboard(request):
                 'CourseName': row.CourseName,
                 'EnrollmentDate': row.EnrollmentDate,
                 'Status': row.Status
+                'RejectionReason': row.RejectionReason,
+                'DropRejectionReason': row.DropRejectionReason
+ 
             }
             for row in cursor.fetchall()
         ]
@@ -505,6 +521,7 @@ def student_dashboard(request):
         'enrolled_courses': enrolled_courses,
         'low_attendance_alerts': low_attendance_alerts,  
     }
+
     
     return render(request, 'dashboard/student_dashboard.html', context)
 
