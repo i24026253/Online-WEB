@@ -1,6 +1,6 @@
 <?php
 
- /* Automatically generates alerts for students with low attendance*/
+/* Automatically generates alerts for students with low attendance*/
 
 require_once 'connect.php';
 
@@ -8,10 +8,11 @@ require_once 'connect.php';
 $LOW_ATTENDANCE_THRESHOLD = 75; // Alert if attendance falls below 75%
 
 
- /* Generate low attendance alerts for all students*/
-
+/* Generate low attendance alerts for all students*/
 function generateLowAttendanceAlerts($conn, $threshold = 75) {
-    // Find students with low attendance per course
+    error_log("=== Starting Alert Generation (Threshold: {$threshold}%) ===");
+    
+    // ✅ Find students with low attendance per course
     $query = "
         SELECT 
             s.StudentID,
@@ -25,8 +26,8 @@ function generateLowAttendanceAlerts($conn, $threshold = 75) {
         FROM dbo.Students s
         INNER JOIN dbo.Enrollments e ON s.StudentID = e.StudentID
         INNER JOIN dbo.Courses c ON e.CourseID = c.CourseID
-        INNER JOIN dbo.Attendance_Sessions ats ON c.CourseID = ats.CourseID
-        LEFT JOIN dbo.Attendance_Records ar ON ats.SessionID = ar.SessionID AND ar.StudentID = s.StudentID
+        INNER JOIN dbo.Attendance_Mark am ON c.CourseID = am.CourseID
+        LEFT JOIN dbo.Attendance_Records ar ON am.MarkID = ar.MarkID AND ar.StudentID = s.StudentID
         WHERE e.Status = 'Active'
         AND s.IsActive = 1
         AND c.IsActive = 1
@@ -38,53 +39,94 @@ function generateLowAttendanceAlerts($conn, $threshold = 75) {
     $stmt = sqlsrv_query($conn, $query, [$threshold]);
     
     if ($stmt === false) {
-        error_log("Failed to get low attendance students: " . print_r(sqlsrv_errors(), true));
+        error_log("❌ Failed to get low attendance students: " . print_r(sqlsrv_errors(), true));
         return false;
     }
     
     $alertsCreated = 0;
-    $alertsUpdated = 0;
+    $alertsSkippedRead = 0;
+    $alertsSkippedRecent = 0;
     
     while ($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
         $studentId = $row['StudentID'];
         $courseId = $row['CourseID'];
         $percentage = round($row['AttendancePercentage'], 2);
         $courseName = $row['CourseName'];
+        $courseCode = $row['CourseCode'];
         
-        // Check if alert already exists for this student and course (within last 7 days)
+        error_log("Checking Student $studentId, Course $courseId ($courseCode): {$percentage}%");
+        
+        // ✅ CRITICAL FIX: Check for ANY existing alert (read OR unread) within last 7 days
         $checkQuery = "
-            SELECT AlertID, IsRead 
+            SELECT TOP 1
+                AlertID, 
+                IsRead, 
+                CreatedDate,
+                Message
             FROM dbo.Alerts 
             WHERE StudentID = ? 
             AND CourseID = ? 
             AND AlertType = 'Low Attendance'
             AND CreatedDate >= DATEADD(day, -7, GETDATE())
+            ORDER BY CreatedDate DESC
         ";
         
         $checkStmt = sqlsrv_query($conn, $checkQuery, [$studentId, $courseId]);
+        
+        if ($checkStmt === false) {
+            error_log("❌ Check query failed: " . print_r(sqlsrv_errors(), true));
+            continue;
+        }
+        
         $existingAlert = sqlsrv_fetch_array($checkStmt, SQLSRV_FETCH_ASSOC);
+        sqlsrv_free_stmt($checkStmt);
         
         if ($existingAlert) {
-            // Update existing alert
+            $alertId = $existingAlert['AlertID'];
+            $isRead = $existingAlert['IsRead'];
+            $createdDate = $existingAlert['CreatedDate']->format('Y-m-d H:i:s');
+            
+            // ✅ CRITICAL: If alert exists and was read, DO NOT touch it at all
+            if ($isRead == 1) {
+                error_log("⏭️  SKIP: Alert $alertId for Student $studentId, Course $courseId is READ (created: $createdDate) - DO NOT UPDATE");
+                $alertsSkippedRead++;
+                continue; // Skip completely - don't update, don't recreate
+            }
+            
+            // ✅ Alert exists but is UNREAD - we can update the message
+            error_log("🔄 Alert $alertId exists and is UNREAD - will update message only");
+            
+            $newMessage = "Your attendance in $courseName is {$percentage}%. Minimum required: {$threshold}%. Please improve your attendance.";
+            
+            // ✅ CRITICAL: Only update Message and CreatedDate, NEVER touch IsRead
             $updateQuery = "
                 UPDATE dbo.Alerts 
                 SET Message = ?, 
-                    IsRead = 0,
                     CreatedDate = GETDATE()
                 WHERE AlertID = ?
+                AND IsRead = 0
             ";
             
-            $message = "Your attendance in $courseName has dropped to {$percentage}%. Minimum required: {$threshold}%. Please improve your attendance.";
+            $updateStmt = sqlsrv_query($conn, $updateQuery, [$newMessage, $alertId]);
             
-            $updateStmt = sqlsrv_query($conn, $updateQuery, [$message, $existingAlert['AlertID']]);
-            
-            if ($updateStmt) {
-                $alertsUpdated++;
+            if ($updateStmt === false) {
+                error_log("❌ Failed to update alert: " . print_r(sqlsrv_errors(), true));
+            } else {
+                $rowsAffected = sqlsrv_rows_affected($updateStmt);
+                if ($rowsAffected > 0) {
+                    error_log("✅ Updated unread alert $alertId for Student $studentId, Course $courseId");
+                } else {
+                    error_log("⚠️  Alert $alertId was not updated (may have been read between checks)");
+                }
+                sqlsrv_free_stmt($updateStmt);
             }
             
-            sqlsrv_free_stmt($checkStmt);
+            $alertsSkippedRecent++;
+            
         } else {
-            // New alert
+            // ✅ No existing alert in last 7 days - create new one
+            error_log("➕ Creating NEW alert for Student $studentId, Course $courseId");
+            
             $insertQuery = "
                 INSERT INTO dbo.Alerts (StudentID, CourseID, AlertType, Message, IsRead, CreatedDate)
                 VALUES (?, ?, 'Low Attendance', ?, 0, GETDATE())
@@ -94,52 +136,73 @@ function generateLowAttendanceAlerts($conn, $threshold = 75) {
             
             $insertStmt = sqlsrv_query($conn, $insertQuery, [$studentId, $courseId, $message]);
             
-            if ($insertStmt) {
-                $alertsCreated++;
+            if ($insertStmt === false) {
+                error_log("❌ Failed to create alert: " . print_r(sqlsrv_errors(), true));
             } else {
-                error_log("Failed to create alert for Student $studentId, Course $courseId: " . print_r(sqlsrv_errors(), true));
+                $alertsCreated++;
+                error_log("✅ Created new alert for Student $studentId, Course $courseId (attendance: {$percentage}%)");
+                sqlsrv_free_stmt($insertStmt);
             }
         }
     }
     
     sqlsrv_free_stmt($stmt);
     
+    error_log("=== Alert Generation Complete ===");
+    error_log("Created: $alertsCreated new alerts");
+    error_log("Skipped (already read): $alertsSkippedRead");
+    error_log("Skipped (recent unread): $alertsSkippedRecent");
+    
     return [
         'created' => $alertsCreated,
-        'updated' => $alertsUpdated
+        'skipped_read' => $alertsSkippedRead,
+        'skipped_recent' => $alertsSkippedRecent
     ];
 }
 
 /*Mark alerts as read */
 function markAlertAsRead($conn, $alertId) {
-    $query = "UPDATE dbo.Alerts SET IsRead = 1 WHERE AlertID = ?";
+    error_log("Marking alert $alertId as read");
+    
+    $query = "UPDATE dbo.Alerts SET IsRead = 1 WHERE AlertID = ? AND IsRead = 0";
     $stmt = sqlsrv_query($conn, $query, [$alertId]);
     
     if ($stmt === false) {
-        return false;
-    }
-    
-    return true;
-}
-
-/*Delete old read alerts (older than 3 days)*/
-
-function cleanupOldAlerts($conn) {
-    $query = "
-        DELETE FROM dbo.Alerts 
-        WHERE IsRead = 1 
-        AND CreatedDate < DATEADD(day, -3, GETDATE())
-    ";
-    
-    $stmt = sqlsrv_query($conn, $query);
-    
-    if ($stmt === false) {
-        error_log("Failed to cleanup old alerts: " . print_r(sqlsrv_errors(), true));
+        error_log("❌ Failed to mark alert as read: " . print_r(sqlsrv_errors(), true));
         return false;
     }
     
     $rowsAffected = sqlsrv_rows_affected($stmt);
     sqlsrv_free_stmt($stmt);
+    
+    if ($rowsAffected > 0) {
+        error_log("✅ Alert $alertId marked as read");
+        return true;
+    } else {
+        error_log("⚠️  Alert $alertId was not updated (may already be read)");
+        return true; // Still return true if already read
+    }
+}
+
+/*Delete old read alerts (older than 30 days) */
+function cleanupOldAlerts($conn) {
+    $query = "
+        DELETE FROM dbo.Alerts 
+        WHERE IsRead = 1 
+        AND CreatedDate < DATEADD(day, -30, GETDATE())
+    ";
+    
+    $stmt = sqlsrv_query($conn, $query);
+    
+    if ($stmt === false) {
+        error_log("❌ Failed to cleanup old alerts: " . print_r(sqlsrv_errors(), true));
+        return false;
+    }
+    
+    $rowsAffected = sqlsrv_rows_affected($stmt);
+    sqlsrv_free_stmt($stmt);
+    
+    error_log("🧹 Cleaned up $rowsAffected old read alerts");
     
     return $rowsAffected;
 }
@@ -162,7 +225,8 @@ if (basename(__FILE__) == basename($_SERVER['SCRIPT_FILENAME'])) {
                         'success' => true,
                         'message' => "Alerts generated successfully",
                         'created' => $result['created'],
-                        'updated' => $result['updated']
+                        'skipped_read' => $result['skipped_read'],
+                        'skipped_recent' => $result['skipped_recent']
                     ]);
                 } else {
                     echo json_encode([
@@ -203,6 +267,7 @@ if (basename(__FILE__) == basename($_SERVER['SCRIPT_FILENAME'])) {
             case 'get_student_alerts':
                 // Get alerts for a specific student
                 $studentId = $_GET['student_id'] ?? null;
+                $includeRead = $_GET['include_read'] ?? false;
                 
                 if ($studentId) {
                     $query = "
@@ -217,30 +282,38 @@ if (basename(__FILE__) == basename($_SERVER['SCRIPT_FILENAME'])) {
                         FROM dbo.Alerts a
                         LEFT JOIN dbo.Courses c ON a.CourseID = c.CourseID
                         WHERE a.StudentID = ?
-                        ORDER BY a.CreatedDate DESC
                     ";
+                    
+                    // ✅ By default, only show unread alerts
+                    if (!$includeRead) {
+                        $query .= " AND a.IsRead = 0";
+                    }
+                    
+                    $query .= " ORDER BY a.CreatedDate DESC";
                     
                     $stmt = sqlsrv_query($conn, $query, [$studentId]);
                     $alerts = [];
                     
-                    while ($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
-                        $alerts[] = [
-                            'AlertID' => $row['AlertID'],
-                            'AlertType' => $row['AlertType'],
-                            'Message' => $row['Message'],
-                            'IsRead' => $row['IsRead'],
-                            'CreatedDate' => $row['CreatedDate']->format('Y-m-d H:i:s'),
-                            'CourseName' => $row['CourseName'],
-                            'CourseCode' => $row['CourseCode']
-                        ];
+                    if ($stmt !== false) {
+                        while ($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
+                            $alerts[] = [
+                                'AlertID' => $row['AlertID'],
+                                'AlertType' => $row['AlertType'],
+                                'Message' => $row['Message'],
+                                'IsRead' => $row['IsRead'],
+                                'CreatedDate' => $row['CreatedDate']->format('Y-m-d H:i:s'),
+                                'CourseName' => $row['CourseName'],
+                                'CourseCode' => $row['CourseCode']
+                            ];
+                        }
+                        sqlsrv_free_stmt($stmt);
                     }
                     
                     echo json_encode([
                         'success' => true,
-                        'alerts' => $alerts
+                        'alerts' => $alerts,
+                        'count' => count($alerts)
                     ]);
-                    
-                    sqlsrv_free_stmt($stmt);
                 } else {
                     echo json_encode([
                         'success' => false,
@@ -256,14 +329,15 @@ if (basename(__FILE__) == basename($_SERVER['SCRIPT_FILENAME'])) {
                 ]);
         }
     } else {
-        // Run alert generation
+        // Run alert generation by default
         $result = generateLowAttendanceAlerts($conn, $LOW_ATTENDANCE_THRESHOLD);
         
         echo json_encode([
             'success' => true,
             'message' => "Alert generation completed",
             'created' => $result['created'],
-            'updated' => $result['updated']
+            'skipped_read' => $result['skipped_read'],
+            'skipped_recent' => $result['skipped_recent']
         ]);
     }
     

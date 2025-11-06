@@ -33,8 +33,8 @@
     {% endfor %}
 {% endif %}
 
-<!-- ✅ Alert Display -->
-<div id="alertModal" class="alert-modal {% if low_attendance_alerts %}show-modal{% endif %}"></div>
+<!-- ✅ Alert Modal - Will auto-show if there are unread alerts -->
+<div id="alertModal" class="alert-modal" style="display: none;">
     <div class="alert-modal-content">
         <div class="alert-modal-header">
             <h4>
@@ -183,7 +183,7 @@
         <div class="card">
             <div class="card-header">
                 <h5><i class="fas fa-calendar-alt me-2"></i>Enrolled Courses</h5>
-                <a href="http://localhost:8080/php_module/enrol.php?username={{ username }}" class="btn btn-outline-success btn-sm float-end">
+                <a href="http://localhost/php_module/enrol.php?username={{ username }}" class="btn btn-outline-success btn-sm float-end">
                     <i class="fas fa-plus-circle me-2"></i>Enroll/Drop a Course
                 </a>
             </div>
@@ -233,7 +233,7 @@
 </div>
 
 <style>
-/* ✅ Alert Modal Styles */
+/* Alert Modal Styles */
 .alert-modal {
     position: fixed;
     z-index: 1050;
@@ -336,7 +336,7 @@
     text-align: right;
 }
 
-/* ✅ Success Notification */
+/* Success Notification */
 .success-notification {
     position: fixed;
     top: 20px;
@@ -357,7 +357,7 @@
     transform: translateY(0);
 }
 
-/* ✅ Error Notification */
+/* Error Notification */
 .error-notification {
     position: fixed;
     top: 20px;
@@ -378,7 +378,7 @@
     transform: translateY(0);
 }
 
-/* ✅ Animations */
+/* Animations */
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -426,9 +426,9 @@
 <!-- Chart.js Script -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-console.log('Script loaded - checking alerts...');
+console.log('=== Student Dashboard Script Loaded ===');
 
-
+// ✅ Toggle modal function
 function toggleAlertModal() {
     console.log('Toggle modal called');
     const modal = document.getElementById('alertModal');
@@ -439,6 +439,7 @@ function toggleAlertModal() {
     }
 }
 
+// ✅ Close modal function
 function closeAlertModal() {
     console.log('Close modal called');
     const modal = document.getElementById('alertModal');
@@ -447,12 +448,15 @@ function closeAlertModal() {
     }
 }
 
-// ✅ Mark alert as read function
+// ✅ FIXED: Mark alert as read function with correct URL
 function markAlertAsRead(alertId, button) {
-    console.log('Mark as read called for alert:', alertId);
+    console.log('=== Mark Alert as Read Called ===');
+    console.log('Alert ID:', alertId);
+    console.log('Button:', button);
     
     if (!alertId || !button) {
         console.error('Missing alertId or button element');
+        showErrorNotification('Invalid request');
         return;
     }
     
@@ -460,32 +464,38 @@ function markAlertAsRead(alertId, button) {
     button.disabled = true;
     button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Processing...';
 
-    const url = 'http://localhost:8080/php_module/mark_alert_read.php';
-    const formData = new URLSearchParams();
+    // ✅ FIXED URL - Remove port 8080, use standard localhost
+    const url = 'http://localhost/php_module/mark_alert_read.php';
+    
+    console.log('Sending request to:', url);
+    
+    // Create FormData object
+    const formData = new FormData();
     formData.append('alert_id', alertId);
     
-    console.log('Sending POST to:', url);
-    console.log('FormData:', formData.toString());
+    console.log('Request data:', { alert_id: alertId });
 
+    // ✅ Use fetch with FormData (not URLSearchParams)
     fetch(url, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formData.toString()
+        body: formData,
+        // Don't set Content-Type header - browser will set it automatically with boundary
     })
     .then(response => {
         console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
+        
         return response.json();
     })
     .then(data => {
-        console.log('Data received:', data);
+        console.log('Response data:', data);
         
         if (data.success) {
-            console.log('Success! Removing alert from UI...');
+            console.log('✅ Success! Removing alert from UI...');
             
             // Remove alert item from UI with smooth animation
             const alertItem = document.getElementById('alert-' + alertId);
@@ -511,19 +521,12 @@ function markAlertAsRead(alertId, button) {
                     
                     // Update bell badge
                     const badge = document.getElementById('alertBadge');
-                    console.log('Badge element:', badge);
                     
                     if (remainingAlerts.length === 0) {
                         if (badge) {
                             badge.remove();
                             console.log('Badge removed');
                         }
-                        
-                        // Close modal and show success message
-                        setTimeout(() => {
-                            closeAlertModal();
-                            showSuccessNotification('All alerts cleared!');
-                        }, 300);
                         
                         // Show no alerts message
                         const modalBody = document.querySelector('.alert-modal-body');
@@ -535,31 +538,33 @@ function markAlertAsRead(alertId, button) {
                                 </div>
                             `;
                         }
+                        
+                        // Close modal after a delay
+                        setTimeout(() => {
+                            closeAlertModal();
+                            showSuccessNotification('All alerts cleared!');
+                        }, 1500);
                     } else {
                         if (badge) {
                             badge.textContent = remainingAlerts.length;
                             console.log('Badge updated to:', remainingAlerts.length);
                         }
+                        showSuccessNotification('Alert marked as read');
                     }
                 }, 300);
             }
-            
-            // Show success notification
-            showSuccessNotification('Alert marked as read');
         } else {
-            console.error('Server returned error:', data.message);
-            // Re-enable button on failure
+            console.error('❌ Server returned error:', data.message);
             button.disabled = false;
             button.innerHTML = '<i class="fas fa-check me-1"></i>Mark as Read';
             showErrorNotification('Failed: ' + data.message);
         }
     })
     .catch(error => {
-        console.error('Fetch error:', error);
-        // Re-enable button on error
+        console.error('❌ Fetch error:', error);
         button.disabled = false;
         button.innerHTML = '<i class="fas fa-check me-1"></i>Mark as Read';
-        showErrorNotification('Network error: ' + error.message);
+        showErrorNotification('Error: ' + error.message);
     });
 }
 
@@ -595,18 +600,30 @@ function showErrorNotification(message) {
 
 // ✅ Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM Content Loaded');
+    console.log('=== DOM Content Loaded ===');
     
     // Check for alert modal
     const modal = document.getElementById('alertModal');
     console.log('Alert modal found:', !!modal);
+    
+    // ✅ AUTO-SHOW MODAL if there are unread alerts
+    const alertCount = document.querySelectorAll('.alert-item').length;
+    console.log('Unread alerts count:', alertCount);
+    
+    if (alertCount > 0 && modal) {
+        console.log('📢 Auto-showing alert modal...');
+        setTimeout(function() {
+            modal.style.display = 'block';
+            console.log('✅ Alert modal displayed automatically');
+        }, 800); // Show after 800ms for better UX
+    }
     
     // Attach event listeners to all mark as read buttons
     const markReadButtons = document.querySelectorAll('.mark-read-btn');
     console.log('Found', markReadButtons.length, 'mark as read buttons');
     
     markReadButtons.forEach((button, index) => {
-        console.log('Attaching listener to button', index);
+        console.log('Attaching listener to button', index, 'with alert ID:', button.getAttribute('data-alert-id'));
         button.addEventListener('click', function(e) {
             e.preventDefault();
             const alertId = this.getAttribute('data-alert-id');
@@ -720,8 +737,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    console.log('=== Dashboard Initialization Complete ===');
 });
 </script>
 
 {% endblock %}
-

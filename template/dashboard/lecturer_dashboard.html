@@ -7,7 +7,7 @@
     </h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
-            <a href="http://localhost:8080/php_module/mark_attendance.php?username={{ username }}" class="btn btn-sm btn-primary">
+            <a href="http://localhost/php_module/mark_attendance.php?username={{ username }}" class="btn btn-sm btn-primary">
                 <i class="fas fa-clipboard-check me-1"></i>Mark Attendance
             </a>
         </div>
@@ -184,31 +184,6 @@
     </div>
 </div>
 
-<!-- Attendance Management -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header bg-white">
-                <h5 class="card-title mb-0"><i class="fas fa-clipboard-check me-2"></i>Quick Actions</h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <a href="http://localhost:8080/php_module/mark_attendance.php?username={{ username }}" class="btn btn-primary w-100 py-3">
-                            <i class="fas fa-clipboard-check fa-2x mb-2 d-block"></i>Mark Attendance
-                        </a>
-                    </div>
-                    <div class="col-md-6">
-                        <a href="http://localhost:8080/php_module/attendance_sessions.php?username={{ username }}" class="btn btn-info w-100 py-3">
-                            <i class="fas fa-calendar-alt fa-2x mb-2 d-block"></i>Manage Sessions
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Course Statistics Chart -->
 <div class="row mb-4">
     <div class="col-md-6">
@@ -228,6 +203,31 @@
             </div>
             <div class="card-body">
                 <canvas id="attendanceChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Attendance Management -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0"><i class="fas fa-clipboard-check me-2"></i>Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <a href="http://localhost/php_module/mark_attendance.php?username={{ username }}" class="btn btn-primary w-100 py-3">
+                            <i class="fas fa-clipboard-check fa-2x mb-2 d-block"></i>Mark Attendance
+                        </a>
+                    </div>
+                    <div class="col-md-6">
+                        <a href="http://localhost/php_module/attendance_sessions.php?username={{ username }}" class="btn btn-info w-100 py-3">
+                            <i class="fas fa-calendar-alt fa-2x mb-2 d-block"></i>Manage Sessions
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

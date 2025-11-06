@@ -1,90 +1,80 @@
 <?php
+
 include 'connect.php';
 
 function generateReportData($conn, $period, $startDate, $endDate, $courseId = null, $studentId = null, $lecturerId = null, $studentNumber = null) {
+    
     $query = "
         SELECT
             s.StudentNumber,
             u.FirstName + ' ' + u.LastName AS student_name,
             c.CourseName,
             c.CourseCode,
-            ats.SessionDate,
+            am.Date as SessionDate,
             ar.Status,
             ar.MarkedTime
         FROM dbo.Attendance_Records ar
         JOIN dbo.Students s ON ar.StudentID = s.StudentID
         JOIN dbo.Users u ON s.UserID = u.UserID
-        JOIN dbo.Attendance_Sessions ats ON ar.SessionID = ats.SessionID
-        JOIN dbo.Courses c ON ats.CourseID = c.CourseID
+        JOIN dbo.Attendance_Mark am ON ar.MarkID = am.MarkID
+        JOIN dbo.Courses c ON am.CourseID = c.CourseID
         WHERE 1=1
     ";
     
     $params = [];
     
-    // Date filtering
     if ($period === 'monthly' && $startDate) {
-        // Handle both YYYY-MM and YYYY-MM-DD formats
         if (strlen($startDate) === 7) {
-            // Format: YYYY-MM
             $startDate = $startDate . '-01';
         }
         
-        $year = substr($startDate, 0, 4);
-        $month = substr($startDate, 5, 2);
-        $firstDay = "$year-$month-01";
-        $lastDay = date("Y-m-t", strtotime($firstDay));
+        $firstDay = date('Y-m-01', strtotime($startDate));
+        $lastDay = date('Y-m-t', strtotime($startDate));
+
+        $query .= " AND ar.MarkedTime >= ? AND ar.MarkedTime < ?";
+        $params[] = $firstDay . ' 00:00:00';
+
+        $params[] = date('Y-m-01 00:00:00', strtotime($firstDay . ' +1 month'));
         
-        error_log("Monthly filter - First day: $firstDay, Last day: $lastDay");
-        
-        $query .= " AND ats.SessionDate BETWEEN ? AND ?";
-        $params[] = $firstDay;
-        $params[] = $lastDay;
     } elseif ($period === 'weekly' && $startDate) {
         $endDate = date('Y-m-d', strtotime($startDate . ' +6 days'));
         
-        error_log("Weekly filter - Start: $startDate, End: $endDate");
+        $query .= " AND ar.MarkedTime >= ? AND ar.MarkedTime < ?";
+        $params[] = $startDate . ' 00:00:00';
+        $params[] = date('Y-m-d 00:00:00', strtotime($endDate . ' +1 day'));
         
-        $query .= " AND ats.SessionDate BETWEEN ? AND ?";
-        $params[] = $startDate;
-        $params[] = $endDate;
     } elseif ($startDate && $endDate) {
-        error_log("Daily filter - Start: $startDate, End: $endDate");
-        
-        $query .= " AND ats.SessionDate BETWEEN ? AND ?";
-        $params[] = $startDate;
-        $params[] = $endDate;
+        $query .= " AND ar.MarkedTime >= ? AND ar.MarkedTime < ?";
+        $params[] = $startDate . ' 00:00:00';
+        $params[] = date('Y-m-d 00:00:00', strtotime($endDate . ' +1 day'));
     }
     
-    // Course filter
     if ($courseId) {
         $query .= " AND c.CourseID = ?";
         $params[] = $courseId;
     }
     
-    // Student ID filter
     if ($studentId) {
         $query .= " AND s.StudentID = ?";
         $params[] = $studentId;
     }
     
-    // Student Number filter - exact match
     if ($studentNumber) {
         $query .= " AND s.StudentNumber = ?";
         $params[] = trim($studentNumber);
     }
     
-    // Lecturer filter
     if ($lecturerId) {
-        $query .= " AND ats.LecturerID = ?";
+        $query .= " AND EXISTS (
+            SELECT 1 FROM dbo.Course_Assignments ca 
+            WHERE ca.CourseID = c.CourseID 
+            AND ca.LecturerID = ? 
+            AND ca.IsActive = 1
+        )";
         $params[] = $lecturerId;
     }
     
     $query .= " ORDER BY ar.MarkedTime DESC";
-    
-    error_log("=== REPORT QUERY DEBUG ===");
-    error_log("SQL Query: " . $query);
-    error_log("Parameters: " . print_r($params, true));
-    error_log("Period: $period");
     
     $stmt = sqlsrv_query($conn, $query, $params);
     
@@ -119,6 +109,7 @@ function generateReportData($conn, $period, $startDate, $endDate, $courseId = nu
             $lateCount++;
         }
         
+
         $markedTime = $row['MarkedTime'];
         if (is_object($markedTime) && method_exists($markedTime, 'format')) {
             $markedTime = $markedTime->format('Y-m-d H:i:s');
@@ -140,12 +131,9 @@ function generateReportData($conn, $period, $startDate, $endDate, $courseId = nu
         ];
     }
     
-    // Calculate average percentage
-    $avgPercentage = $totalRecords > 0 ? round(($presentCount / $totalRecords) * 100, 2) : 0;
-    
-    error_log("Total records found: $totalRecords");
-    
     sqlsrv_free_stmt($stmt);
+    
+    $avgPercentage = $totalRecords > 0 ? round(($presentCount / $totalRecords) * 100, 2) : 0;
     
     return [
         'records' => $report,
@@ -166,12 +154,13 @@ $period = $_GET['period'] ?? 'monthly';
 $startDate = $_GET['start'] ?? null;
 $endDate = $_GET['end'] ?? null;
 
+// 默认当前月
 if ($period === 'monthly' && !$startDate) {
-    $startDate = date('Y-m-01');
+    $startDate = date('Y-m');
 }
 
-// Default date range for other periods
-if (!$startDate) {
+// 默认最近30天
+if (!$startDate && $period !== 'monthly') {
     $startDate = date('Y-m-d', strtotime('-30 days'));
 }
 if (!$endDate && $period === 'daily') {
@@ -183,17 +172,15 @@ $studentId = isset($_GET['student_id']) && $_GET['student_id'] !== '' ? (int)$_G
 $lecturerId = isset($_GET['lecturer_id']) && $_GET['lecturer_id'] !== '' ? (int)$_GET['lecturer_id'] : null;
 $studentNumber = isset($_GET['student_number']) && $_GET['student_number'] !== '' ? $_GET['student_number'] : null;
 
-error_log("=== REPORT REQUEST ===");
-error_log("Period: $period");
-error_log("Start Date: $startDate");
-error_log("End Date: " . ($endDate ?? 'null'));
-error_log("Student Number: " . ($studentNumber ?? 'null'));
-error_log("Course ID: " . ($courseId ?? 'null'));
-error_log("Lecturer ID: " . ($lecturerId ?? 'null'));
-
 $reportData = generateReportData($conn, $period, $startDate, $endDate, $courseId, $studentId, $lecturerId, $studentNumber);
 
 echo json_encode($reportData);
 
 sqlsrv_close($conn);
 ?>
+
+
+
+
+
+

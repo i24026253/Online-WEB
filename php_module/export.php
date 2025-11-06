@@ -1,69 +1,52 @@
-
 <?php
 include 'connect.php';
-
 require 'lib/fpdf.php';
 require 'vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use PhpOffice\PhpSpreadsheet\Writer\Csv;
 
-
-/* Generate report data with student name display */
 function generateReportData($conn, $period, $startDate, $endDate, $courseId = null, $studentId = null, $lecturerId = null, $studentNumber = null) {
+    
     $query = "
         SELECT
             s.StudentNumber,
             u.FirstName + ' ' + u.LastName AS student_name,
             c.CourseName,
             c.CourseCode,
-            ats.SessionDate,
+            am.Date as SessionDate,
             ar.Status,
             ar.MarkedTime
         FROM dbo.Attendance_Records ar
         JOIN dbo.Students s ON ar.StudentID = s.StudentID
         JOIN dbo.Users u ON s.UserID = u.UserID
-        JOIN dbo.Attendance_Sessions ats ON ar.SessionID = ats.SessionID
-        JOIN dbo.Courses c ON ats.CourseID = c.CourseID
+        JOIN dbo.Attendance_Mark am ON ar.MarkID = am.MarkID
+        JOIN dbo.Courses c ON am.CourseID = c.CourseID
         WHERE 1=1
     ";
     
     $params = [];
     
-    // Date filtering for monthly period - same fix as reports.php
     if ($period === 'monthly' && $startDate) {
-        // Extract year and month from the date
-        if (strlen($startDate) == 7) {
-            // Format: YYYY-MM
-            $year = substr($startDate, 0, 4);
-            $month = substr($startDate, 5, 2);
-        } elseif (strlen($startDate) == 10) {
-            // Format: YYYY-MM-DD
-            $year = substr($startDate, 0, 4);
-            $month = substr($startDate, 5, 2);
-        } else {
-            // Fallback
-            $dateParts = explode('-', $startDate);
-            $year = $dateParts[0];
-            $month = $dateParts[1];
+        if (strlen($startDate) === 7) {
+            $startDate = $startDate . '-01';
         }
         
-        // Use YEAR and MONTH functions for matching
-        $query .= " AND YEAR(ar.MarkedTime) = ? AND MONTH(ar.MarkedTime) = ?";
-        $params[] = (int)$year;
-        $params[] = (int)$month;
+        $firstDay = date('Y-m-01', strtotime($startDate));
+        $query .= " AND ar.MarkedTime >= ? AND ar.MarkedTime < ?";
+        $params[] = $firstDay . ' 00:00:00';
+        $params[] = date('Y-m-01 00:00:00', strtotime($firstDay . ' +1 month'));
         
     } elseif ($period === 'weekly' && $startDate) {
         $endDate = date('Y-m-d', strtotime($startDate . ' +6 days'));
+        $query .= " AND ar.MarkedTime >= ? AND ar.MarkedTime < ?";
+        $params[] = $startDate . ' 00:00:00';
+        $params[] = date('Y-m-d 00:00:00', strtotime($endDate . ' +1 day'));
         
-        $query .= " AND CAST(ar.MarkedTime AS DATE) BETWEEN ? AND ?";
-        $params[] = $startDate;
-        $params[] = $endDate;
     } elseif ($startDate && $endDate) {
-        $query .= " AND CAST(ar.MarkedTime AS DATE) BETWEEN ? AND ?";
-        $params[] = $startDate;
-        $params[] = $endDate;
+        $query .= " AND ar.MarkedTime >= ? AND ar.MarkedTime < ?";
+        $params[] = $startDate . ' 00:00:00';
+        $params[] = date('Y-m-d 00:00:00', strtotime($endDate . ' +1 day'));
     }
     
     if ($courseId) {
@@ -82,7 +65,12 @@ function generateReportData($conn, $period, $startDate, $endDate, $courseId = nu
     }
     
     if ($lecturerId) {
-        $query .= " AND ats.LecturerID = ?";
+        $query .= " AND EXISTS (
+            SELECT 1 FROM dbo.Course_Assignments ca 
+            WHERE ca.CourseID = c.CourseID 
+            AND ca.LecturerID = ? 
+            AND ca.IsActive = 1
+        )";
         $params[] = $lecturerId;
     }
     
@@ -91,13 +79,13 @@ function generateReportData($conn, $period, $startDate, $endDate, $courseId = nu
     $stmt = sqlsrv_query($conn, $query, $params);
     
     if ($stmt === false) {
+        error_log("Export SQL Error: " . print_r(sqlsrv_errors(), true));
         return [
             'records' => [],
             'summary' => [
                 'total_records' => 0,
                 'present_count' => 0,
                 'absent_count' => 0,
-                'late_count' => 0
             ]
         ];
     }
@@ -106,7 +94,6 @@ function generateReportData($conn, $period, $startDate, $endDate, $courseId = nu
     $totalRecords = 0;
     $presentCount = 0;
     $absentCount = 0;
-    $lateCount = 0;
     
     while ($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
         $totalRecords++;
@@ -115,8 +102,6 @@ function generateReportData($conn, $period, $startDate, $endDate, $courseId = nu
             $presentCount++;
         } elseif ($row['Status'] === 'Absent') {
             $absentCount++;
-        } elseif ($row['Status'] === 'Late') {
-            $lateCount++;
         }
         
         $markedTime = $row['MarkedTime'];
@@ -124,11 +109,17 @@ function generateReportData($conn, $period, $startDate, $endDate, $courseId = nu
             $markedTime = $markedTime->format('Y-m-d H:i:s');
         }
         
+        $sessionDate = $row['SessionDate'];
+        if (is_object($sessionDate) && method_exists($sessionDate, 'format')) {
+            $sessionDate = $sessionDate->format('Y-m-d');
+        }
+        
         $report[] = [
             'StudentNumber' => $row['StudentNumber'],
             'student_name' => $row['student_name'],
             'CourseName' => $row['CourseName'],
             'CourseCode' => $row['CourseCode'],
+            'SessionDate' => $sessionDate,
             'Status' => $row['Status'],
             'MarkedTime' => $markedTime
         ];
@@ -142,12 +133,10 @@ function generateReportData($conn, $period, $startDate, $endDate, $courseId = nu
             'total_records' => $totalRecords,
             'present_count' => $presentCount,
             'absent_count' => $absentCount,
-            'late_count' => $lateCount
         ]
     ];
 }
 
-// Exporting function
 function exportReport($format, $reportData, $period, $startDate, $endDate, $courseFilter, $studentFilter) {
     if ($format == 'pdf') {
         $fontDir = __DIR__ . '/lib/font';
@@ -159,13 +148,10 @@ function exportReport($format, $reportData, $period, $startDate, $endDate, $cour
       
         $pdf = new FPDF();
         $pdf->AddPage();
-      
-        // Title
         $pdf->SetFont('Arial', 'B', 16);
         $pdf->Cell(0, 10, 'Attendance Report', 0, 1, 'C');
         $pdf->Ln(5);
         
-        // Filter Information
         $pdf->SetFont('Arial', '', 10);
         $pdf->Cell(0, 6, 'Time Period: ' . ucfirst($period), 0, 1);
         $pdf->Cell(0, 6, 'Date Range: ' . $startDate . ' to ' . $endDate, 0, 1);
@@ -180,7 +166,6 @@ function exportReport($format, $reportData, $period, $startDate, $endDate, $cour
         $hasData = isset($reportData['records']) && count($reportData['records']) > 0;
         
         if ($hasData) {
-            // Table Header
             $pdf->SetFont('Arial', 'B', 9);
             $pdf->Cell(60, 8, 'Student Name', 1);
             $pdf->Cell(50, 8, 'Course', 1);
@@ -188,9 +173,7 @@ function exportReport($format, $reportData, $period, $startDate, $endDate, $cour
             $pdf->Cell(55, 8, 'Marked Time', 1);
             $pdf->Ln();
           
-            // Data rows
             $pdf->SetFont('Arial', '', 8);
-          
             foreach ($reportData['records'] as $row) {
                 $pdf->Cell(60, 7, substr($row['student_name'], 0, 25), 1);
                 $pdf->Cell(50, 7, substr($row['CourseCode'] . ' - ' . $row['CourseName'], 0, 25), 1);
@@ -199,7 +182,6 @@ function exportReport($format, $reportData, $period, $startDate, $endDate, $cour
                 $pdf->Ln();
             }
             
-            // Summary
             if (isset($reportData['summary'])) {
                 $pdf->Ln(5);
                 $pdf->SetFont('Arial', 'B', 11);
@@ -208,7 +190,6 @@ function exportReport($format, $reportData, $period, $startDate, $endDate, $cour
                 $pdf->Cell(0, 6, 'Total Records: ' . $reportData['summary']['total_records'], 0, 1);
                 $pdf->Cell(0, 6, 'Present: ' . $reportData['summary']['present_count'], 0, 1);
                 $pdf->Cell(0, 6, 'Absent: ' . $reportData['summary']['absent_count'], 0, 1);
-                $pdf->Cell(0, 6, 'Late: ' . $reportData['summary']['late_count'], 0, 1);
             }
         } else {
             $pdf->SetFont('Arial', 'I', 11);
@@ -219,36 +200,33 @@ function exportReport($format, $reportData, $period, $startDate, $endDate, $cour
         exit;
       
     } elseif ($format == 'excel') {
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         
-        // Title
         $sheet->setCellValue('A1', 'Attendance Report');
         $sheet->mergeCells('A1:D1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
         
-        // Filter Information
         $row = 3;
-        $sheet->setCellValue('A' . $row, 'Time Period:');
-        $sheet->setCellValue('B' . $row, ucfirst($period));
+        $sheet->setCellValue('A' . $row, 'Time Period:')->setCellValue('B' . $row, ucfirst($period));
         $row++;
-        $sheet->setCellValue('A' . $row, 'Date Range:');
-        $sheet->setCellValue('B' . $row, $startDate . ' to ' . $endDate);
+        $sheet->setCellValue('A' . $row, 'Date Range:')->setCellValue('B' . $row, $startDate . ' to ' . $endDate);
         $row++;
         if ($courseFilter) {
-            $sheet->setCellValue('A' . $row, 'Course:');
-            $sheet->setCellValue('B' . $row, $courseFilter);
+            $sheet->setCellValue('A' . $row, 'Course:')->setCellValue('B' . $row, $courseFilter);
             $row++;
         }
         if ($studentFilter) {
-            $sheet->setCellValue('A' . $row, 'Student:');
-            $sheet->setCellValue('B' . $row, $studentFilter);
+            $sheet->setCellValue('A' . $row, 'Student:')->setCellValue('B' . $row, $studentFilter);
             $row++;
         }
         $row += 2;
       
-        // Header
         $sheet->setCellValue('A' . $row, 'Student Name')
               ->setCellValue('B' . $row, 'Course')
               ->setCellValue('C' . $row, 'Status')
@@ -256,30 +234,25 @@ function exportReport($format, $reportData, $period, $startDate, $endDate, $cour
         $sheet->getStyle('A' . $row . ':D' . $row)->getFont()->setBold(true);
         $row++;
       
-        // Data
         if (isset($reportData['records']) && count($reportData['records']) > 0) {
             foreach ($reportData['records'] as $record) {
-                $sheet->setCellValue('A' . $row, $record['student_name']);
-                $sheet->setCellValue('B' . $row, $record['CourseCode'] . ' - ' . $record['CourseName']);
-                $sheet->setCellValue('C' . $row, $record['Status']);
-                $sheet->setCellValue('D' . $row, $record['MarkedTime']);
+                $sheet->setCellValue('A' . $row, $record['student_name'])
+                      ->setCellValue('B' . $row, $record['CourseCode'] . ' - ' . $record['CourseName'])
+                      ->setCellValue('C' . $row, $record['Status'])
+                      ->setCellValue('D' . $row, $record['MarkedTime']);
                 $row++;
             }
             
-            // Summary
             if (isset($reportData['summary'])) {
                 $row += 2;
-                $sheet->setCellValue('A' . $row, 'Total Records:');
-                $sheet->setCellValue('B' . $row, $reportData['summary']['total_records']);
+                $sheet->setCellValue('A' . $row, 'Total Records:')
+                      ->setCellValue('B' . $row, $reportData['summary']['total_records']);
                 $row++;
-                $sheet->setCellValue('A' . $row, 'Present:');
-                $sheet->setCellValue('B' . $row, $reportData['summary']['present_count']);
+                $sheet->setCellValue('A' . $row, 'Present:')
+                      ->setCellValue('B' . $row, $reportData['summary']['present_count']);
                 $row++;
-                $sheet->setCellValue('A' . $row, 'Absent:');
-                $sheet->setCellValue('B' . $row, $reportData['summary']['absent_count']);
-                $row++;
-                $sheet->setCellValue('A' . $row, 'Late:');
-                $sheet->setCellValue('B' . $row, $reportData['summary']['late_count']);
+                $sheet->setCellValue('A' . $row, 'Absent:')
+                      ->setCellValue('B' . $row, $reportData['summary']['absent_count']);
             }
         } else {
             $sheet->setCellValue('A' . $row, 'No attendance records found for this period.');
@@ -288,13 +261,33 @@ function exportReport($format, $reportData, $period, $startDate, $endDate, $cour
         foreach(range('A','D') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
-      
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment;filename="attendance_report.xlsx"');
-        header('Cache-Control: max-age=0');
-      
+        
+        $filename = 'attendance_report_' . date('Ymd_His') . '.xlsx';
+        $tempFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $filename;
+        
         $writer = new Xlsx($spreadsheet);
-        $writer->save('php://output');
+        $writer->save($tempFile);
+        
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
+        unset($writer);
+        
+        if (!file_exists($tempFile)) {
+            die('Error: Failed to create Excel file');
+        }
+        
+        $fileSize = filesize($tempFile);
+        
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . $fileSize);
+        header('Cache-Control: max-age=0');
+        header('Pragma: public');
+        
+        readfile($tempFile);
+        
+        @unlink($tempFile);
+        
         exit;
       
     } elseif ($format == 'csv') {
@@ -305,7 +298,6 @@ function exportReport($format, $reportData, $period, $startDate, $endDate, $cour
         $output = fopen('php://output', 'w');
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
       
-        // Title and filters
         fputcsv($output, ['Attendance Report']);
         fputcsv($output, []);
         fputcsv($output, ['Time Period:', ucfirst($period)]);
@@ -318,10 +310,8 @@ function exportReport($format, $reportData, $period, $startDate, $endDate, $cour
         }
         fputcsv($output, []);
       
-        // Header
         fputcsv($output, ['Student Name', 'Course', 'Status', 'Marked Time']);
       
-        // Data
         if (isset($reportData['records']) && count($reportData['records']) > 0) {
             foreach ($reportData['records'] as $row) {
                 fputcsv($output, [
@@ -332,13 +322,11 @@ function exportReport($format, $reportData, $period, $startDate, $endDate, $cour
                 ]);
             }
             
-            // Summary
             if (isset($reportData['summary'])) {
                 fputcsv($output, []);
                 fputcsv($output, ['Total Records:', $reportData['summary']['total_records']]);
                 fputcsv($output, ['Present:', $reportData['summary']['present_count']]);
                 fputcsv($output, ['Absent:', $reportData['summary']['absent_count']]);
-                fputcsv($output, ['Late:', $reportData['summary']['late_count']]);
             }
         } else {
             fputcsv($output, ['No attendance records found for this period.']);
@@ -349,7 +337,6 @@ function exportReport($format, $reportData, $period, $startDate, $endDate, $cour
     }
 }
 
-// API Interface
 if (isset($_GET['format']) && isset($_GET['period'])) {
     $period = $_GET['period'];
     $startDate = $_GET['start'] ?? date('Y-m-d', strtotime('-30 days'));
@@ -359,7 +346,6 @@ if (isset($_GET['format']) && isset($_GET['period'])) {
     $lecturerId = isset($_GET['lecturer_id']) && $_GET['lecturer_id'] !== '' ? (int)$_GET['lecturer_id'] : null;
     $studentNumber = isset($_GET['student_number']) && $_GET['student_number'] !== '' ? $_GET['student_number'] : null;
   
-    // Course name for display
     $courseFilter = '';
     if ($courseId) {
         $courseQuery = "SELECT CourseCode, CourseName FROM dbo.Courses WHERE CourseID = ?";
@@ -373,7 +359,6 @@ if (isset($_GET['format']) && isset($_GET['period'])) {
         }
     }
     
-    // Student name for display
     $studentFilter = '';
     if ($studentNumber) {
         $studentQuery = "SELECT u.FirstName, u.LastName, s.StudentNumber 

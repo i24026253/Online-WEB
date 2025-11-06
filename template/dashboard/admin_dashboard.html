@@ -92,7 +92,7 @@
         <h5 class="alert-heading mb-1">Pending Approvals</h5>
         <p class="mb-0">You have <strong>{{ pending_enrollments }}</strong> enrollment/drop request(s) waiting for approval.</p>
     </div>
-    <a href="http://localhost:8080/php_module/pending_approvals.php?username={{ username }}" class="btn btn-info">
+    <a href="http://localhost/php_module/pending_approvals.php?username={{ username }}" class="btn btn-info">
         <i class="fas fa-clipboard-check me-2"></i>Review Now
     </a>
 </div>
@@ -271,7 +271,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function exportReport(format) {
     const period = 'monthly';
-    const url = `http://localhost:8080/php_module/export.php?format=${format}&period=${period}`;
+    const url = `http://localhost/php_module/export.php?format=${format}&period=${period}`;
     window.location.href = url;
 }
 </script>

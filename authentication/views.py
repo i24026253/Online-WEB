@@ -31,15 +31,12 @@ def login_view(request):
             if row:
                 username_db, password_db, role_db, first_name, last_name = row
 
-                # ⚠️ Adjust this if you are using hashed passwords
                 if password == password_db:
-                    # Save session
                     request.session['username'] = username_db
                     request.session['role'] = role_db.lower()
                     request.session['first_name'] = first_name
                     request.session['last_name'] = last_name
 
-                    # Redirect by role
                     if role_db.lower() == 'admin':
                         return redirect('admin_dashboard')
                     elif role_db.lower() == 'lecturer':
@@ -80,7 +77,7 @@ def dashboard_view(request):
     else:
         return redirect('login')
 
-# 🔹 ADMIN DASHBOARD 
+# 🔹 ADMIN DASHBOARD (FIXED)
 def admin_dashboard(request):
     username = request.session.get('username', 'Unknown')
     role = request.session.get('role', 'unknown')
@@ -143,7 +140,7 @@ def admin_dashboard(request):
                 'lecturer': row.lecturer_name
             })
         
-        # ✨ Students per course
+        # Students per course
         cursor.execute("""
             SELECT TOP 10
                 c.CourseCode,
@@ -163,7 +160,7 @@ def admin_dashboard(request):
                 'count': row.student_count or 0
             })
         
-        # ✨ Recent attendance records (last 10 records)
+        # ✅ FIXED: Recent attendance records (using Attendance_Mark)
         cursor.execute("""
             SELECT TOP 10
                 s.StudentNumber,
@@ -173,8 +170,8 @@ def admin_dashboard(request):
                 ar.Status
             FROM dbo.Attendance_Records ar
             JOIN dbo.Students s ON ar.StudentID = s.StudentID
-            JOIN dbo.Attendance_Sessions ats ON ar.SessionID = ats.SessionID
-            JOIN dbo.Courses c ON ats.CourseID = c.CourseID
+            JOIN dbo.Attendance_Mark am ON ar.MarkID = am.MarkID
+            JOIN dbo.Courses c ON am.CourseID = c.CourseID
             ORDER BY ar.MarkedTime DESC
         """)
         
@@ -212,7 +209,7 @@ def admin_dashboard(request):
     return render(request, 'dashboard/admin_dashboard.html', context)
 
 
-# 🔹 LECTURER DASHBOARD
+# 🔹 LECTURER DASHBOARD (FIXED)
 def lecturer_dashboard(request):
     username = request.session.get('username', 'Unknown')
     role = request.session.get('role', 'unknown')
@@ -221,13 +218,11 @@ def lecturer_dashboard(request):
 
     total_courses = 0
     total_students = 0
-
     total_sessions = 0
     sessions_this_week = 0
     my_courses = []
     recent_sessions = []
     attendance_records_count = 0
-
 
     try:
         conn = pyodbc.connect(
@@ -238,7 +233,6 @@ def lecturer_dashboard(request):
         )
         cursor = conn.cursor()
         
-
         cursor.execute("""
             SELECT l.LecturerID 
             FROM dbo.Lecturers l 
@@ -249,6 +243,7 @@ def lecturer_dashboard(request):
         
         if lecturer_row:
             lecturer_id = lecturer_row[0]
+            
             # Total courses teaching
             cursor.execute("""
                 SELECT COUNT(*) 
@@ -268,11 +263,12 @@ def lecturer_dashboard(request):
             """, (lecturer_id,))
             total_students = cursor.fetchone()[0]
             
-            # Total sessions conducted
+            # ✅ FIXED: Total sessions conducted (using Attendance_Mark)
             cursor.execute("""
-                SELECT COUNT(*) 
-                FROM dbo.Attendance_Sessions 
-                WHERE LecturerID = ? AND IsActive = 1
+                SELECT COUNT(DISTINCT am.MarkID)
+                FROM dbo.Attendance_Mark am
+                JOIN dbo.Course_Assignments ca ON am.CourseID = ca.CourseID
+                WHERE ca.LecturerID = ? AND ca.IsActive = 1
             """, (lecturer_id,))
             total_sessions = cursor.fetchone()[0]
             
@@ -287,20 +283,20 @@ def lecturer_dashboard(request):
             """, (lecturer_id, week_start))
             attendance_records_count = cursor.fetchone()[0]
             
-            # Detailed course information
+            # ✅ FIXED: Detailed course information (using Attendance_Mark)
             cursor.execute("""
                 SELECT 
                     c.CourseID,
                     c.CourseCode,
                     c.CourseName,
                     COUNT(DISTINCT e.StudentID) as enrolled_count,
-                    COUNT(DISTINCT ats.SessionID) as session_count,
+                    COUNT(DISTINCT am.MarkID) as session_count,
                     ISNULL(AVG(CASE WHEN ar.Status = 'Present' THEN 100.0 ELSE 0 END), 0) as avg_attendance
                 FROM dbo.Courses c
                 JOIN dbo.Course_Assignments ca ON c.CourseID = ca.CourseID
                 LEFT JOIN dbo.Enrollments e ON c.CourseID = e.CourseID AND e.Status = 'Active'
-                LEFT JOIN dbo.Attendance_Sessions ats ON c.CourseID = ats.CourseID AND ats.IsActive = 1
-                LEFT JOIN dbo.Attendance_Records ar ON ats.SessionID = ar.SessionID
+                LEFT JOIN dbo.Attendance_Mark am ON c.CourseID = am.CourseID
+                LEFT JOIN dbo.Attendance_Records ar ON am.MarkID = ar.MarkID
                 WHERE ca.LecturerID = ? AND ca.IsActive = 1
                 GROUP BY c.CourseID, c.CourseCode, c.CourseName
                 ORDER BY c.CourseCode
@@ -318,16 +314,16 @@ def lecturer_dashboard(request):
                 for row in cursor.fetchall()
             ]
             
-            # Get recent 10 teaching sessions
+            # ✅ FIXED: Get recent 10 teaching sessions (using Attendance_Mark)
             cursor.execute("""
                 SELECT TOP 10
-                    ats.SessionID,
-                    ats.SessionDate,
-                    ats.SessionStartTime,
-                    ats.SessionEndTime,
-                    ats.SessionType,
-                    ats.Location,
-                    ats.IsActive,
+                    am.MarkID as SessionID,
+                    am.Date as SessionDate,
+                    am.MarkedTime as SessionStartTime,
+                    NULL as SessionEndTime,
+                    'Lecture' as SessionType,
+                    NULL as Location,
+                    1 as IsActive,
                     c.CourseCode,
                     c.CourseName,
                     COUNT(ar.AttendanceID) as total_count,
@@ -337,15 +333,15 @@ def lecturer_dashboard(request):
                         NULLIF(COUNT(ar.AttendanceID), 0) * 100, 
                         0
                     ) as attendance_rate
-                FROM dbo.Attendance_Sessions ats
-                JOIN dbo.Courses c ON ats.CourseID = c.CourseID
-                LEFT JOIN dbo.Attendance_Records ar ON ats.SessionID = ar.SessionID
-                WHERE ats.LecturerID = ?
+                FROM dbo.Attendance_Mark am
+                JOIN dbo.Courses c ON am.CourseID = c.CourseID
+                JOIN dbo.Course_Assignments ca ON c.CourseID = ca.CourseID
+                LEFT JOIN dbo.Attendance_Records ar ON am.MarkID = ar.MarkID
+                WHERE ca.LecturerID = ? AND ca.IsActive = 1
                 GROUP BY 
-                    ats.SessionID, ats.SessionDate, ats.SessionStartTime, 
-                    ats.SessionEndTime, ats.SessionType, ats.Location, 
-                    ats.IsActive, c.CourseCode, c.CourseName
-                ORDER BY ats.SessionDate DESC, ats.SessionStartTime DESC
+                    am.MarkID, am.Date, am.MarkedTime, 
+                    c.CourseCode, c.CourseName
+                ORDER BY am.Date DESC, am.MarkedTime DESC
             """, (lecturer_id,))
             
             recent_sessions = [
@@ -383,13 +379,11 @@ def lecturer_dashboard(request):
         'my_courses': my_courses,
         'recent_sessions': recent_sessions,
         'attendance_records_count': attendance_records_count,
-
     }
     
     return render(request, 'dashboard/lecturer_dashboard.html', context)
 
-  
-  # 🔹 STUDENT DASHBOARD
+# 🔹 STUDENT DASHBOARD
 def student_dashboard(request):
     username = request.session.get('username') or request.GET.get('username', 'Unknown')
     role = request.session.get('role', 'unknown')
@@ -426,7 +420,39 @@ def student_dashboard(request):
         
         student_id, first_name, last_name = student_data
         
-        # ✅ Fetch UNREAD alerts for student
+        # ✅ IMPROVED: Generate alerts only once per day per student
+        # Use a session key with date to track if we've generated today
+        from datetime import datetime
+        today = datetime.now().strftime('%Y-%m-%d')
+        session_key = f'alerts_generated_{student_id}_{today}'
+        
+        if not request.session.get(session_key, False):
+            try:
+                print(f"🔄 Generating alerts for student {student_id} (first time today)")
+                # Call PHP alert generator API
+                alert_response = requests.get(
+                    f'http://localhost/php_module/alert_generator.php?action=generate&threshold=75',
+                    timeout=5
+                )
+                if alert_response.status_code == 200:
+                    alert_data = alert_response.json()
+                    if alert_data.get('success'):
+                        print(f"✅ Alert generation: Created={alert_data.get('created', 0)}, "
+                              f"Skipped (read)={alert_data.get('skipped_read', 0)}, "
+                              f"Skipped (recent)={alert_data.get('skipped_recent', 0)}")
+                        # Mark that we've generated alerts today for this student
+                        request.session[session_key] = True
+                    else:
+                        print(f"❌ Alert generation failed: {alert_data.get('message')}")
+                else:
+                    print(f"❌ Alert generation failed with status: {alert_response.status_code}")
+            except Exception as e:
+                print(f"❌ Error calling alert generator: {e}")
+                # Don't block the dashboard if alert generation fails
+        else:
+            print(f"ℹ️  Alerts already generated today for student {student_id} - skipping")
+        
+        # ✅ Fetch ONLY UNREAD alerts for student
         cursor.execute("""
             SELECT 
                 a.AlertID,
@@ -452,12 +478,24 @@ def student_dashboard(request):
                 'course_code': row.CourseCode
             })
         
+        print(f"📋 Found {len(low_attendance_alerts)} UNREAD alerts for student {student_id}")
+        
+        # Debug: Check if there are any read alerts
+        cursor.execute("""
+            SELECT COUNT(*) as ReadCount
+            FROM dbo.Alerts
+            WHERE StudentID = ? AND IsRead = 1
+        """, (student_id,))
+        read_count = cursor.fetchone()[0]
+        print(f"📖 Student {student_id} has {read_count} READ alerts in database")
+        
         # Fetch enrolled courses
         cursor.execute("""
-            SELECT c.CourseID, c.CourseCode, c.CourseName, e.EnrollmentDate, e.Status
+            SELECT c.CourseID, c.CourseCode, c.CourseName, e.EnrollmentDate, e.Status, e.RejectionReason, e.DropRejectionReason
             FROM dbo.Enrollments e
             JOIN dbo.Courses c ON e.CourseID = c.CourseID
             WHERE e.StudentID = ?
+            ORDER BY e.EnrollmentDate DESC
         """, (student_id,))
         enrolled_courses = [
             {
@@ -465,10 +503,9 @@ def student_dashboard(request):
                 'CourseCode': row.CourseCode,
                 'CourseName': row.CourseName,
                 'EnrollmentDate': row.EnrollmentDate,
-                'Status': row.Status
+                'Status': row.Status,
                 'RejectionReason': row.RejectionReason,
                 'DropRejectionReason': row.DropRejectionReason
- 
             }
             for row in cursor.fetchall()
         ]
@@ -477,7 +514,7 @@ def student_dashboard(request):
         conn.close()
     except Exception as e:
         messages.warning(request, f"Student stats error: {str(e)} - Using defaults.")
-        print(f"Student dashboard error: {e}")
+        print(f"❌ Student dashboard error: {e}")
     
     # Get detailed attendance data by calling the PHP API
     active_course_percentages = []
@@ -488,7 +525,7 @@ def student_dashboard(request):
             if course['Status'] == 'Active':
                 try:
                     resp = requests.get(
-                        f'http://localhost:8080/php_module/analytics.php?action=percentage&student_id={student_id}&course_id={course["CourseID"]}', 
+                        f'http://localhost/php_module/analytics.php?action=percentage&student_id={student_id}&course_id={course["CourseID"]}', 
                         timeout=5
                     )
                     if resp.status_code == 200:
@@ -519,15 +556,21 @@ def student_dashboard(request):
         'total_courses': total_courses,
         'overall_attendance_rate': overall_attendance_rate,
         'enrolled_courses': enrolled_courses,
-        'low_attendance_alerts': low_attendance_alerts,  
+        'low_attendance_alerts': low_attendance_alerts,
     }
-
     
     return render(request, 'dashboard/student_dashboard.html', context)
 
 
+# 🔹 LOGOUT VIEW - Don't clear date-based session keys
+def logout_view(request):
+    # ✅ FIXED: Don't clear alert generation flags
+    # They are date-based, so they'll expire naturally
+    request.session.flush()
+    messages.success(request, "Logged out successfully.")
+    return redirect('login')
 
-# ✨ Report page view
+# ✨ Report page view (No changes needed - PHP handles the queries)
 def reports_view(request):
     if 'username' not in request.session:
         return redirect('login')
@@ -544,11 +587,27 @@ def reports_view(request):
     student_id = request.GET.get('student_id', '')
     student_number = request.GET.get('student_number', '') 
     
-    # Available courses for filter
+    # ✅ 如果沒有提供 start 日期，設置為當前月份
+    if not start:
+        from datetime import datetime
+        if period == 'monthly':
+            # 格式：2025-10
+            start = datetime.now().strftime('%Y-%m')
+        elif period == 'weekly':
+            # 格式：2025-10-07 (本週的開始日期)
+            start = datetime.now().strftime('%Y-%m-%d')
+        else:  # daily
+            # 格式：2025-10-07
+            start = datetime.now().strftime('%Y-%m-%d')
+    
+    # ✅ 如果是 daily 且沒有 end 日期，設置為當前日期
+    if period == 'daily' and not end:
+        from datetime import datetime
+        end = datetime.now().strftime('%Y-%m-%d')
+    
     available_courses = []
     lecturer_id = None
     
-    # If it is a lecturer, get their lecturer_id
     if role == 'lecturer':
         try:
             conn = pyodbc.connect(
@@ -567,14 +626,10 @@ def reports_view(request):
             row = cursor.fetchone()
             if row:
                 lecturer_id = row[0]
-                print(f"✅ Found LecturerID: {lecturer_id} for {username}") 
-            else:
-                print(f"❌ No LecturerID found for {username}") 
             conn.close()
         except Exception as e:
             print(f"Error fetching lecturer ID: {e}")
     
-    # If it is a student, the student_id will be set automatically
     if role == 'student' and not student_id:
         try:
             conn = pyodbc.connect(
@@ -597,7 +652,6 @@ def reports_view(request):
         except Exception as e:
             print(f"Error fetching student ID: {e}")
     
-    # Get available courses for dropdown
     try:
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
@@ -608,7 +662,6 @@ def reports_view(request):
         cursor = conn.cursor()
         
         if role == 'student' and student_id:
-            # Get only student's enrolled courses
             cursor.execute("""
                 SELECT DISTINCT c.CourseID, c.CourseCode, c.CourseName
                 FROM dbo.Courses c
@@ -617,7 +670,6 @@ def reports_view(request):
                 ORDER BY c.CourseCode
             """, (student_id,))
         elif role == 'lecturer' and lecturer_id:
-            # Get only lecturer's assigned courses
             cursor.execute("""
                 SELECT DISTINCT c.CourseID, c.CourseCode, c.CourseName
                 FROM dbo.Courses c
@@ -626,7 +678,6 @@ def reports_view(request):
                 ORDER BY c.CourseCode
             """, (lecturer_id,))
         else:
-            # Get all courses for admin
             cursor.execute("""
                 SELECT CourseID, CourseCode, CourseName
                 FROM dbo.Courses
@@ -649,7 +700,7 @@ def reports_view(request):
     # Build the API URL
     report_data = {'records': [], 'summary': {'total_records': 0, 'avg_percentage': 0}}
     try:
-        url = f'http://localhost:8080/php_module/reports.php?period={period}'
+        url = f'http://localhost/php_module/reports.php?period={period}'
         if start:
             url += f'&start={start}'
         if end:
@@ -662,16 +713,10 @@ def reports_view(request):
             url += f'&student_number={student_number}'
         if lecturer_id and role == 'lecturer':
             url += f'&lecturer_id={lecturer_id}'
-            print(f"✅ Added lecturer_id to URL: {lecturer_id}") 
-        
-        print(f"Fetching report from: {url}")  
         
         response = requests.get(url, timeout=10)
         if response.status_code == 200:
             report_data = response.json()
-            print(f"Report data received: {len(report_data.get('records', []))} records")
-        else:
-            print(f"Error: HTTP {response.status_code}")
     except Exception as e:
         print(f"Error fetching report data: {e}")
     
@@ -686,9 +731,9 @@ def reports_view(request):
         'end': end,
         'course_id': course_id,
         'student_id': student_id,
-        'student_number': student_number,  
+        'student_number': student_number,
         'available_courses': available_courses,
-        'lecturer_id': lecturer_id,  
+        'lecturer_id': lecturer_id,
     }
     
     return render(request, 'dashboard/reports.html', context)
