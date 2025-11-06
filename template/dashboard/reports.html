@@ -154,15 +154,12 @@
 </div>
 
 <script>
-// ✅ 初始化函數 - 設置表單的初始狀態
 function initializeForm() {
     var period = document.getElementById('periodSelect').value;
     var startDate = document.getElementById('startDate');
     var startMonth = document.getElementById('startMonth');
     
-    // ✅ 如果是 monthly 且 startMonth 有值，確保它顯示
     if (period === 'monthly') {
-        // 如果 startMonth 沒有值，設置為當前月份
         if (!startMonth.value) {
             var now = new Date();
             var year = now.getFullYear();
@@ -170,17 +167,14 @@ function initializeForm() {
             startMonth.value = year + '-' + month;
         }
         
-        // 確保從 startDate 同步值到 startMonth（如果有的話）
         if (startDate.value && startDate.value.length >= 7) {
             startMonth.value = startDate.value.substring(0, 7);
         }
     }
     
-    // 觸發 period 變更事件來正確顯示/隱藏字段
     document.getElementById('periodSelect').dispatchEvent(new Event('change'));
 }
 
-// ✅ Period 選擇器變更事件
 document.getElementById('periodSelect').addEventListener('change', function() {
     var period = this.value;
     var startLabel = document.getElementById('startLabel');
@@ -196,12 +190,10 @@ document.getElementById('periodSelect').addEventListener('change', function() {
         startDate.name = ''; 
         endDateContainer.style.display = 'none';
         
-        // ✅ 從 date 同步到 month
         if (startDate.value && startDate.value.length >= 7) {
             startMonth.value = startDate.value.substring(0, 7);
         }
         
-        // ✅ 如果 month 輸入框為空，設置為當前月份
         if (!startMonth.value) {
             var now = new Date();
             var year = now.getFullYear();
@@ -216,7 +208,7 @@ document.getElementById('periodSelect').addEventListener('change', function() {
         startMonth.name = '';
         endDateContainer.style.display = 'none';
         
-        // ✅ 從 month 同步到 date（添加 -01）
+        
         if (startMonth.value) {
             startDate.value = startMonth.value + '-01';
         }
@@ -228,14 +220,13 @@ document.getElementById('periodSelect').addEventListener('change', function() {
         startMonth.name = '';
         endDateContainer.style.display = 'block';
         
-        // ✅ 從 month 同步到 date（添加 -01）
         if (startMonth.value) {
             startDate.value = startMonth.value + '-01';
         }
     }
 });
 
-// ✅ Export 函數
+
 function exportReport(format) {
     var form = document.getElementById('reportFilterForm');
     var formData = new FormData(form);
@@ -250,7 +241,6 @@ function exportReport(format) {
         url += '&period=' + encodeURIComponent(period);
     }
     
-    // ✅ 根據 period 獲取正確的日期值
     if (period === 'monthly') {
         var monthValue = document.getElementById('startMonth').value;
         if (monthValue) {
@@ -279,7 +269,7 @@ function exportReport(format) {
         url += '&student_number=' + encodeURIComponent(studentNumber);
     }
     
-    // 添加 lecturer_id（如果是講師）
+
     var userRole = document.getElementById('userRole').textContent.trim();
     var lecturerId = document.getElementById('lecturerId').textContent.trim();
     
@@ -293,7 +283,6 @@ function exportReport(format) {
     return false;
 }
 
-// ✅ 頁面加載時初始化
 document.addEventListener('DOMContentLoaded', function() {
     initializeForm();
     console.log('Reports page initialized');

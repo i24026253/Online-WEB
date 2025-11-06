@@ -1,16 +1,11 @@
 <?php
-/**
- * Test Script for Alert System
- * Place this in: C:\xampp\htdocs\php_module\test_alert_system.php
- * Access via: http://localhost/php_module/test_alert_system.php
- */
 
 require_once 'connect.php';
 
 echo "<h1>Alert System Test</h1>";
 echo "<hr>";
 
-// Test 1: Check database connection
+// Check database connection
 echo "<h2>Test 1: Database Connection</h2>";
 if ($conn) {
     echo "✅ Database connected successfully<br>";
@@ -20,7 +15,7 @@ if ($conn) {
 }
 echo "<hr>";
 
-// Test 2: Check for students with low attendance
+// Check for students with low attendance
 echo "<h2>Test 2: Students with Low Attendance (< 75%)</h2>";
 $query = "
     SELECT 
@@ -85,7 +80,7 @@ if ($stmt === false) {
 }
 echo "<hr>";
 
-// Test 3: Check existing alerts
+// Check existing alerts
 echo "<h2>Test 3: Existing Alerts in Database</h2>";
 $alertQuery = "
     SELECT 
@@ -150,13 +145,13 @@ if ($alertStmt === false) {
 }
 echo "<hr>";
 
-// Test 4: Test alert generation
+// Test alert generation
 echo "<h2>Test 4: Generate Alerts</h2>";
 echo "<p><a href='alert_generator.php?action=generate&threshold=75' target='_blank' style='padding: 10px 20px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px;'>🔄 Generate Alerts Now</a></p>";
 echo "<p><small>Click the button above to generate alerts. Then refresh this page to see results.</small></p>";
 echo "<hr>";
 
-// Test 5: Recommendations
+// Recommendations
 echo "<h2>Test 5: System Recommendations</h2>";
 echo "<ul>";
 

@@ -4,7 +4,7 @@ include 'connect.php';
 
 // Calculate the student's attendance rate in a certain course (or all courses)
 function calculateAttendancePercentage($conn, $studentId, $courseId = null) {
-    // ✅ FIXED: Updated query to use Attendance_Mark instead of Attendance_Sessions
+
     $query = "SELECT 
                 COUNT(*) AS total_sessions,
                 SUM(CASE WHEN ar.Status = 'Present' THEN 1 ELSE 0 END) AS present_count
@@ -36,7 +36,6 @@ function calculateAttendancePercentage($conn, $studentId, $courseId = null) {
 
 // Course statistics (average attendance, number of enrollees)
 function getCourseStats($conn, $courseId) {
-    // ✅ FIXED: Updated query to use Attendance_Mark instead of Attendance_Sessions
     $query = "SELECT 
                 AVG(CASE WHEN ar.Status = 'Present' THEN 1.0 ELSE 0 END) * 100 AS avg_attendance,
                 COUNT(DISTINCT ar.StudentID) AS enrolled_students
@@ -59,7 +58,6 @@ function getCourseStats($conn, $courseId) {
 
 // Global statistics (for administrators)
 function getOverallStats($conn) {
-    // ✅ FIXED: Updated query to use Attendance_Mark instead of Attendance_Sessions
     $query = "SELECT 
                 AVG(CASE WHEN ar.Status = 'Present' THEN 1.0 ELSE 0 END) * 100 AS system_avg_attendance,
                 COUNT(DISTINCT ar.StudentID) AS total_students,
@@ -82,7 +80,6 @@ function getOverallStats($conn) {
 
 // Low attendance alert (below threshold, default 75%)
 function getLowAttendanceAlerts($conn, $threshold = 75) {
-    // ✅ FIXED: Updated query to use Attendance_Mark instead of Attendance_Sessions
     $query = "SELECT 
                 s.StudentID, 
                 u.FirstName + ' ' + u.LastName AS student_name,

@@ -56,7 +56,7 @@ function generateLowAttendanceAlerts($conn, $threshold = 75) {
         
         error_log("Checking Student $studentId, Course $courseId ($courseCode): {$percentage}%");
         
-        // ✅ CRITICAL FIX: Check for ANY existing alert (read OR unread) within last 7 days
+        // ✅ Check for ANY existing alert (read OR unread) within last 7 days
         $checkQuery = "
             SELECT TOP 1
                 AlertID, 
@@ -86,19 +86,17 @@ function generateLowAttendanceAlerts($conn, $threshold = 75) {
             $isRead = $existingAlert['IsRead'];
             $createdDate = $existingAlert['CreatedDate']->format('Y-m-d H:i:s');
             
-            // ✅ CRITICAL: If alert exists and was read, DO NOT touch it at all
+            
             if ($isRead == 1) {
                 error_log("⏭️  SKIP: Alert $alertId for Student $studentId, Course $courseId is READ (created: $createdDate) - DO NOT UPDATE");
                 $alertsSkippedRead++;
-                continue; // Skip completely - don't update, don't recreate
+                continue; 
             }
             
-            // ✅ Alert exists but is UNREAD - we can update the message
             error_log("🔄 Alert $alertId exists and is UNREAD - will update message only");
             
-            $newMessage = "Your attendance in $courseName is {$percentage}%. Minimum required: {$threshold}%. Please improve your attendance.";
-            
-            // ✅ CRITICAL: Only update Message and CreatedDate, NEVER touch IsRead
+            $newMessage = "Your attendance in $courseName is {$percentage}%. Minimum required: {$threshold}%. Please improve your attendance.";            
+    
             $updateQuery = "
                 UPDATE dbo.Alerts 
                 SET Message = ?, 
@@ -124,7 +122,7 @@ function generateLowAttendanceAlerts($conn, $threshold = 75) {
             $alertsSkippedRecent++;
             
         } else {
-            // ✅ No existing alert in last 7 days - create new one
+
             error_log("➕ Creating NEW alert for Student $studentId, Course $courseId");
             
             $insertQuery = "
@@ -180,7 +178,7 @@ function markAlertAsRead($conn, $alertId) {
         return true;
     } else {
         error_log("⚠️  Alert $alertId was not updated (may already be read)");
-        return true; // Still return true if already read
+        return true; 
     }
 }
 

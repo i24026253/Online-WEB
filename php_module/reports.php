@@ -154,12 +154,10 @@ $period = $_GET['period'] ?? 'monthly';
 $startDate = $_GET['start'] ?? null;
 $endDate = $_GET['end'] ?? null;
 
-// 默认当前月
 if ($period === 'monthly' && !$startDate) {
     $startDate = date('Y-m');
 }
 
-// 默认最近30天
 if (!$startDate && $period !== 'monthly') {
     $startDate = date('Y-m-d', strtotime('-30 days'));
 }

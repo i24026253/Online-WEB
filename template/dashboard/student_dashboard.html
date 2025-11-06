@@ -464,7 +464,6 @@ function markAlertAsRead(alertId, button) {
     button.disabled = true;
     button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Processing...';
 
-    // ✅ FIXED URL - Remove port 8080, use standard localhost
     const url = 'http://localhost/php_module/mark_alert_read.php';
     
     console.log('Sending request to:', url);
@@ -475,11 +474,10 @@ function markAlertAsRead(alertId, button) {
     
     console.log('Request data:', { alert_id: alertId });
 
-    // ✅ Use fetch with FormData (not URLSearchParams)
+    // ✅ Use fetch with FormData 
     fetch(url, {
         method: 'POST',
         body: formData,
-        // Don't set Content-Type header - browser will set it automatically with boundary
     })
     .then(response => {
         console.log('Response status:', response.status);
@@ -539,7 +537,6 @@ function markAlertAsRead(alertId, button) {
                             `;
                         }
                         
-                        // Close modal after a delay
                         setTimeout(() => {
                             closeAlertModal();
                             showSuccessNotification('All alerts cleared!');
@@ -598,7 +595,7 @@ function showErrorNotification(message) {
     }, 3000);
 }
 
-// ✅ Initialize on page load
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('=== DOM Content Loaded ===');
     

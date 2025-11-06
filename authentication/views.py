@@ -160,7 +160,6 @@ def admin_dashboard(request):
                 'count': row.student_count or 0
             })
         
-        # ✅ FIXED: Recent attendance records (using Attendance_Mark)
         cursor.execute("""
             SELECT TOP 10
                 s.StudentNumber,
@@ -209,7 +208,7 @@ def admin_dashboard(request):
     return render(request, 'dashboard/admin_dashboard.html', context)
 
 
-# 🔹 LECTURER DASHBOARD (FIXED)
+# 🔹 LECTURER DASHBOARD 
 def lecturer_dashboard(request):
     username = request.session.get('username', 'Unknown')
     role = request.session.get('role', 'unknown')
@@ -263,7 +262,6 @@ def lecturer_dashboard(request):
             """, (lecturer_id,))
             total_students = cursor.fetchone()[0]
             
-            # ✅ FIXED: Total sessions conducted (using Attendance_Mark)
             cursor.execute("""
                 SELECT COUNT(DISTINCT am.MarkID)
                 FROM dbo.Attendance_Mark am
@@ -283,7 +281,6 @@ def lecturer_dashboard(request):
             """, (lecturer_id, week_start))
             attendance_records_count = cursor.fetchone()[0]
             
-            # ✅ FIXED: Detailed course information (using Attendance_Mark)
             cursor.execute("""
                 SELECT 
                     c.CourseID,
@@ -314,7 +311,6 @@ def lecturer_dashboard(request):
                 for row in cursor.fetchall()
             ]
             
-            # ✅ FIXED: Get recent 10 teaching sessions (using Attendance_Mark)
             cursor.execute("""
                 SELECT TOP 10
                     am.MarkID as SessionID,
@@ -420,8 +416,6 @@ def student_dashboard(request):
         
         student_id, first_name, last_name = student_data
         
-        # ✅ IMPROVED: Generate alerts only once per day per student
-        # Use a session key with date to track if we've generated today
         from datetime import datetime
         today = datetime.now().strftime('%Y-%m-%d')
         session_key = f'alerts_generated_{student_id}_{today}'
@@ -440,7 +434,7 @@ def student_dashboard(request):
                         print(f"✅ Alert generation: Created={alert_data.get('created', 0)}, "
                               f"Skipped (read)={alert_data.get('skipped_read', 0)}, "
                               f"Skipped (recent)={alert_data.get('skipped_recent', 0)}")
-                        # Mark that we've generated alerts today for this student
+                        
                         request.session[session_key] = True
                     else:
                         print(f"❌ Alert generation failed: {alert_data.get('message')}")
@@ -448,7 +442,7 @@ def student_dashboard(request):
                     print(f"❌ Alert generation failed with status: {alert_response.status_code}")
             except Exception as e:
                 print(f"❌ Error calling alert generator: {e}")
-                # Don't block the dashboard if alert generation fails
+                
         else:
             print(f"ℹ️  Alerts already generated today for student {student_id} - skipping")
         
@@ -480,7 +474,7 @@ def student_dashboard(request):
         
         print(f"📋 Found {len(low_attendance_alerts)} UNREAD alerts for student {student_id}")
         
-        # Debug: Check if there are any read alerts
+        # Check if there are any read alerts
         cursor.execute("""
             SELECT COUNT(*) as ReadCount
             FROM dbo.Alerts
@@ -562,15 +556,13 @@ def student_dashboard(request):
     return render(request, 'dashboard/student_dashboard.html', context)
 
 
-# 🔹 LOGOUT VIEW - Don't clear date-based session keys
+# 🔹 LOGOUT VIEW 
 def logout_view(request):
-    # ✅ FIXED: Don't clear alert generation flags
-    # They are date-based, so they'll expire naturally
     request.session.flush()
     messages.success(request, "Logged out successfully.")
     return redirect('login')
 
-# ✨ Report page view (No changes needed - PHP handles the queries)
+# ✨ Report page view 
 def reports_view(request):
     if 'username' not in request.session:
         return redirect('login')
@@ -587,20 +579,15 @@ def reports_view(request):
     student_id = request.GET.get('student_id', '')
     student_number = request.GET.get('student_number', '') 
     
-    # ✅ 如果沒有提供 start 日期，設置為當前月份
     if not start:
         from datetime import datetime
-        if period == 'monthly':
-            # 格式：2025-10
+        if period == 'monthly':            
             start = datetime.now().strftime('%Y-%m')
         elif period == 'weekly':
-            # 格式：2025-10-07 (本週的開始日期)
             start = datetime.now().strftime('%Y-%m-%d')
-        else:  # daily
-            # 格式：2025-10-07
+        else: 
             start = datetime.now().strftime('%Y-%m-%d')
     
-    # ✅ 如果是 daily 且沒有 end 日期，設置為當前日期
     if period == 'daily' and not end:
         from datetime import datetime
         end = datetime.now().strftime('%Y-%m-%d')
