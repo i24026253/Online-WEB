@@ -1,0 +1,312 @@
+{% extends 'base.html' %}
+{% block title %}Reports - Attendance System{% endblock %}
+
+{% block authenticated_content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-chart-bar me-2"></i>Attendance Reports
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="fas fa-download me-1"></i>Export Report
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="#" onclick="exportReport('pdf'); return false;"><i class="fas fa-file-pdf me-2"></i>PDF</a></li>
+                <li><a class="dropdown-item" href="#" onclick="exportReport('excel'); return false;"><i class="fas fa-file-excel me-2"></i>Excel</a></li>
+                <li><a class="dropdown-item" href="#" onclick="exportReport('csv'); return false;"><i class="fas fa-file-csv me-2"></i>CSV</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Form -->
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Report Filters</h5>
+    </div>
+    <div class="card-body">
+        <form method="GET" action="{% url 'reports' %}" id="reportFilterForm">
+            <div class="row g-3">
+                <!-- Time Period -->
+                <div class="col-md-3">
+                    <label class="form-label">Time Period</label>
+                    <select name="period" id="periodSelect" class="form-select" required>
+                        <option value="daily" {% if period == 'daily' %}selected{% endif %}>Daily</option>
+                        <option value="weekly" {% if period == 'weekly' %}selected{% endif %}>Weekly</option>
+                        <option value="monthly" {% if period == 'monthly' %}selected{% endif %}>Monthly</option>
+                    </select>
+                </div>
+
+                <!-- Start Date/Month -->
+                <div class="col-md-3" id="startDateContainer">
+                    <label class="form-label" id="startLabel">Start Date</label>
+                    <input type="date" name="start" id="startDate" class="form-control" value="{{ start }}">
+                    <input type="month" id="startMonth" class="form-control" style="display:none;" value="{{ start }}">
+                </div>
+
+                <!-- End Date (only for daily) -->
+                <div class="col-md-3" id="endDateContainer">
+                    <label class="form-label">End Date</label>
+                    <input type="date" name="end" id="endDate" class="form-control" value="{{ end }}">
+                </div>
+
+                <!-- Course Filter -->
+                <div class="col-md-3">
+                    <label class="form-label">Course (Optional)</label>
+                    <select name="course_id" class="form-select">
+                        <option value="">All Courses</option>
+                        {% for course in available_courses %}
+                        <option value="{{ course.CourseID }}" {% if course_id == course.CourseID|stringformat:"s" %}selected{% endif %}>
+                            {{ course.CourseCode }} - {{ course.CourseName }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Student Number Filter -->
+                <div class="col-md-3">
+                    <label class="form-label">Student Number (Optional)</label>
+                    <input type="text" name="student_number" class="form-control" 
+                           placeholder="e.g., S001" 
+                           value="{{ student_number|default:'' }}">
+                    <small class="text-muted">Enter exact student number</small>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-2"></i>Generate Report
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Report Summary -->
+{% if report_data.summary %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card stat-card card-primary">
+            <div class="card-body text-center">
+                <i class="fas fa-list fa-2x text-primary mb-2"></i>
+                <h4>{{ report_data.summary.total_records }}</h4>
+                <p class="text-muted mb-0">Total Records</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Report Data Table -->
+<div class="card">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="fas fa-table me-2"></i>Attendance Records</h5>
+    </div>
+    <div class="card-body">
+        {% if report_data.records %}
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead class="table-light">
+                    <tr>
+                        <th><i class="fas fa-id-card me-1"></i>Student Number</th>
+                        <th><i class="fas fa-user me-1"></i>Student Name</th>
+                        <th><i class="fas fa-book me-1"></i>Course</th>
+                        <th><i class="fas fa-info-circle me-1"></i>Status</th>
+                        <th><i class="fas fa-clock me-1"></i>Marked Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in report_data.records %}
+                    <tr>
+                        <td><strong>{{ record.StudentNumber }}</strong></td>
+                        <td>{{ record.student_name }}</td>
+                        <td>
+                            <strong>{{ record.CourseCode }}</strong><br>
+                            <small class="text-muted">{{ record.CourseName }}</small>
+                        </td>
+                        <td>
+                            <span class="badge {% if record.Status == 'Present' %}bg-success{% elif record.Status == 'Late' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                {{ record.Status }}
+                            </span>
+                        </td>
+                        <td>{{ record.MarkedTime }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+            <p class="text-muted">No records found for the selected filters.</p>
+            <small class="text-muted">Try adjusting your filter criteria.</small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Hidden data for JavaScript -->
+<div id="jsData" style="display:none;">
+    <span id="userRole">{{ user_role }}</span>
+    <span id="lecturerId">{{ lecturer_id|default:'' }}</span>
+</div>
+
+<script>
+function initializeForm() {
+    var period = document.getElementById('periodSelect').value;
+    var startDate = document.getElementById('startDate');
+    var startMonth = document.getElementById('startMonth');
+    
+    if (period === 'monthly') {
+        if (!startMonth.value) {
+            var now = new Date();
+            var year = now.getFullYear();
+            var month = String(now.getMonth() + 1).padStart(2, '0');
+            startMonth.value = year + '-' + month;
+        }
+        
+        if (startDate.value && startDate.value.length >= 7) {
+            startMonth.value = startDate.value.substring(0, 7);
+        }
+    }
+    
+    document.getElementById('periodSelect').dispatchEvent(new Event('change'));
+}
+
+document.getElementById('periodSelect').addEventListener('change', function() {
+    var period = this.value;
+    var startLabel = document.getElementById('startLabel');
+    var startDate = document.getElementById('startDate');
+    var startMonth = document.getElementById('startMonth');
+    var endDateContainer = document.getElementById('endDateContainer');
+    
+    if (period === 'monthly') {
+        startLabel.textContent = 'Select Month';
+        startDate.style.display = 'none';
+        startMonth.style.display = 'block';
+        startMonth.name = 'start'; 
+        startDate.name = ''; 
+        endDateContainer.style.display = 'none';
+        
+        if (startDate.value && startDate.value.length >= 7) {
+            startMonth.value = startDate.value.substring(0, 7);
+        }
+        
+        if (!startMonth.value) {
+            var now = new Date();
+            var year = now.getFullYear();
+            var month = String(now.getMonth() + 1).padStart(2, '0');
+            startMonth.value = year + '-' + month;
+        }
+    } else if (period === 'weekly') {
+        startLabel.textContent = 'Start Date (Week Beginning)';
+        startDate.style.display = 'block';
+        startMonth.style.display = 'none';
+        startDate.name = 'start';
+        startMonth.name = '';
+        endDateContainer.style.display = 'none';
+        
+        
+        if (startMonth.value) {
+            startDate.value = startMonth.value + '-01';
+        }
+    } else {
+        startLabel.textContent = 'Start Date';
+        startDate.style.display = 'block';
+        startMonth.style.display = 'none';
+        startDate.name = 'start';
+        startMonth.name = '';
+        endDateContainer.style.display = 'block';
+        
+        if (startMonth.value) {
+            startDate.value = startMonth.value + '-01';
+        }
+    }
+});
+
+
+function exportReport(format) {
+    var form = document.getElementById('reportFilterForm');
+    var formData = new FormData(form);
+    
+    var url = 'http://localhost/php_module/export.php?format=' + format;
+    
+    var period = formData.get('period');
+    var courseId = formData.get('course_id');
+    var studentNumber = formData.get('student_number');
+    
+    if (period) {
+        url += '&period=' + encodeURIComponent(period);
+    }
+    
+    if (period === 'monthly') {
+        var monthValue = document.getElementById('startMonth').value;
+        if (monthValue) {
+            url += '&start=' + encodeURIComponent(monthValue);
+            console.log('Export - Monthly start:', monthValue);
+        }
+    } else {
+        var start = document.getElementById('startDate').value;
+        if (start) {
+            url += '&start=' + encodeURIComponent(start);
+        }
+        
+        if (period === 'daily') {
+            var end = document.getElementById('endDate').value;
+            if (end) {
+                url += '&end=' + encodeURIComponent(end);
+            }
+        }
+    }
+    
+    if (courseId) {
+        url += '&course_id=' + encodeURIComponent(courseId);
+    }
+    
+    if (studentNumber) {
+        url += '&student_number=' + encodeURIComponent(studentNumber);
+    }
+    
+
+    var userRole = document.getElementById('userRole').textContent.trim();
+    var lecturerId = document.getElementById('lecturerId').textContent.trim();
+    
+    if (userRole === 'lecturer' && lecturerId) {
+        url += '&lecturer_id=' + encodeURIComponent(lecturerId);
+    }
+    
+    console.log('Export URL:', url);
+    window.location.href = url;
+    
+    return false;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeForm();
+    console.log('Reports page initialized');
+    console.log('Current period:', document.getElementById('periodSelect').value);
+    console.log('Current start month:', document.getElementById('startMonth').value);
+});
+</script>
+
+<style>
+.stat-card {
+    border-left: 4px solid;
+    transition: transform 0.3s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.card-primary { 
+    border-left-color: #3498db; 
+}
+
+.table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+</style>
+{% endblock %}

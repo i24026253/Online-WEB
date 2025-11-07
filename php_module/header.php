@@ -115,6 +115,11 @@ function renderHeader($username, $user_role = 'student', $active_page = '') {
                                         <i class="fas fa-calendar-alt me-2"></i>Semesters
                                     </a>
                                 </li>
+                                <li class="nav-item">
+                                    <a class="nav-link <?php echo $active_page === 'reports' ? 'active' : ''; ?>" href="http://127.0.0.1:8000/reports/">
+                                        <i class="fas fa-chart-bar me-2"></i>Reports
+                                    </a>
+                                </li>
                             </ul>
 
                         <?php } elseif ($user_role === 'lecturer') { ?>
@@ -125,9 +130,20 @@ function renderHeader($username, $user_role = 'student', $active_page = '') {
                                         <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                                     </a>
                                 </li>
-                                <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-book me-2"></i>My Courses</a></li>
-                                <li class="nav-item"><a class="nav-link" href="http://localhost/php_module/mark_attendance.php?username=<?php echo urlencode($username); ?>"><i class="fas fa-calendar-check me-2"></i>Attendance</a></li>
-                                <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-chart-bar me-2"></i>Reports</a></li>
+                                <!--<li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-book me-2"></i>My Courses</a></li-->
+
+                                <li class="nav-item">
+                                    <a class="nav-link" href="http://localhost/php_module/mark_attendance.php?username=<?php echo urlencode($username); ?>">
+                                        <i class="fas fa-calendar-check me-2"></i>Attendance
+                                    </a>
+                                </li>
+
+                                <li class="nav-item">
+                                    <a class="nav-link <?php echo $active_page === 'reports' ? 'active' : ''; ?>" href="http://127.0.0.1:8000/reports/">
+                                        <i class="fas fa-chart-bar me-2"></i>Reports
+                                    </a>
+                                </li>
+
                             </ul>
 
                         <?php } else { ?>

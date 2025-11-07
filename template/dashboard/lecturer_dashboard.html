@@ -1,11 +1,9 @@
 {% extends 'base.html' %}
-
 {% block title %}Lecturer Dashboard - Attendance System{% endblock %}
-
 {% block authenticated_content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">
-        <i class="fas fa-tachometer-alt me-2"></i>Lecturer Dashboard - Welcome, {{ first_name }} {{ last_name }}!
+        <i class="fas fa-chalkboard-teacher me-2"></i>Lecturer Dashboard - Welcome, {{ first_name }} {{ last_name }}!
     </h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
@@ -33,8 +31,8 @@
         <div class="card stat-card card-primary h-100">
             <div class="card-body text-center">
                 <i class="fas fa-book fa-3x text-primary mb-3"></i>
-                <h5>{{ my_courses_count|default:0 }}</h5>
-                <p class="text-muted">My Courses</p>
+                <h5>{{ total_courses|default:0 }}</h5>
+                <p class="text-muted mb-0">Total Courses Teaching</p>
             </div>
         </div>
     </div>
@@ -43,7 +41,7 @@
             <div class="card-body text-center">
                 <i class="fas fa-users fa-3x text-success mb-3"></i>
                 <h5>{{ total_students|default:0 }}</h5>
-                <p class="text-muted">Enrolled Students</p>
+                <p class="text-muted mb-0">Total Students</p>
             </div>
         </div>
     </div>
@@ -51,8 +49,160 @@
         <div class="card stat-card card-warning h-100">
             <div class="card-body text-center">
                 <i class="fas fa-calendar-check fa-3x text-warning mb-3"></i>
-                <h5>{{ sessions_this_week|default:0 }}</h5>
-                <p class="text-muted">Sessions This Week</p>
+                <h5>{{ total_sessions|default:0 }}</h5>
+                <p class="text-muted mb-0">Total Sessions Conducted</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- My Courses Details -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-graduation-cap me-2"></i>My Courses Overview</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th><i class="fas fa-book me-1"></i>Course Code</th>
+                                <th><i class="fas fa-tag me-1"></i>Course Name</th>
+                                <th><i class="fas fa-users me-1"></i>Enrolled Students</th>
+                                <th><i class="fas fa-chart-line me-1"></i>Avg Attendance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for course in my_courses %}
+                            <tr>
+                                <td><strong>{{ course.CourseCode }}</strong></td>
+                                <td>{{ course.CourseName }}</td>
+                                <td>
+                                    <span class="badge bg-info text-dark">
+                                        <i class="fas fa-user-graduate me-1"></i>{{ course.enrolled_count }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge {% if course.avg_attendance >= 75 %}bg-success{% elif course.avg_attendance >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                        {{ course.avg_attendance|floatformat:1 }}%
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                                    No courses assigned yet
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Recent Teaching Sessions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Teaching Sessions (Last 10)</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th><i class="fas fa-calendar me-1"></i>Date</th>
+                                <th><i class="fas fa-clock me-1"></i>Time</th>
+                                <th><i class="fas fa-book me-1"></i>Course</th>
+                                <th><i class="fas fa-chalkboard me-1"></i>Session Type</th>
+                                <th><i class="fas fa-map-marker-alt me-1"></i>Location</th>
+                                <th><i class="fas fa-user-check me-1"></i>Attendance</th>
+                                <th><i class="fas fa-info-circle me-1"></i>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for session in recent_sessions %}
+                            <tr>
+                                <td>{{ session.SessionDate|date:"M d, Y" }}</td>
+                                <td>
+                                    {{ session.SessionStartTime|time:"H:i" }} - {{ session.SessionEndTime|time:"H:i" }}
+                                </td>
+                                <td>
+                                    <strong>{{ session.CourseCode }}</strong><br>
+                                    <small class="text-muted">{{ session.CourseName }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">
+                                        {{ session.SessionType|default:"Lecture" }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <i class="fas fa-map-pin me-1 text-danger"></i>
+                                    {{ session.Location|default:"TBA" }}
+                                </td>
+                                <td>
+                                    <span class="text-success fw-bold">{{ session.present_count }}</span> / 
+                                    <span class="text-muted">{{ session.total_count }}</span>
+                                    <br>
+                                    <small class="text-muted">
+                                        ({{ session.attendance_rate|floatformat:1 }}%)
+                                    </small>
+                                </td>
+                                <td>
+                                    {% if session.IsActive %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check-circle me-1"></i>Completed
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="fas fa-times-circle me-1"></i>Inactive
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    <i class="fas fa-calendar-times fa-2x mb-2 d-block"></i>
+                                    No recent sessions found
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Course Statistics Chart -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Students per Course</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="studentsChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Attendance Rate by Course</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="attendanceChart" height="300"></canvas>
             </div>
         </div>
     </div>
@@ -63,7 +213,7 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header bg-white">
-                <h5 class="card-title mb-0"><i class="fas fa-clipboard-check me-2"></i>Attendance Management</h5>
+                <h5 class="card-title mb-0"><i class="fas fa-clipboard-check me-2"></i>Quick Actions</h5>
             </div>
             <div class="card-body">
                 <div class="row g-3">
@@ -82,5 +232,137 @@
         </div>
     </div>
 </div>
+
+
+<!-- Hidden data for charts -->
+<div id="chart-data" style="display: none;">
+    {% for course in my_courses %}
+    <span class="course-data"
+          data-code="{{ course.CourseCode }}"
+          data-students="{{ course.enrolled_count }}"
+          data-attendance="{{ course.avg_attendance }}"></span>
+    {% endfor %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Get course data
+        var courseData = document.querySelectorAll('.course-data');
+        var courseLabels = [];
+        var studentCounts = [];
+        var attendanceRates = [];
+        
+        courseData.forEach(function(item) {
+            courseLabels.push(item.getAttribute('data-code'));
+            studentCounts.push(parseInt(item.getAttribute('data-students')) || 0);
+            attendanceRates.push(parseFloat(item.getAttribute('data-attendance')) || 0);
+        });
+
+        // Students per Course Chart
+        var studentsCtx = document.getElementById('studentsChart');
+        if (studentsCtx && courseLabels.length > 0) {
+            new Chart(studentsCtx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: courseLabels,
+                    datasets: [{
+                        label: 'Number of Students',
+                        data: studentCounts,
+                        backgroundColor: '#3498db',
+                        borderColor: '#2980b9',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // Attendance Rate Chart
+        var attendanceCtx = document.getElementById('attendanceChart');
+        if (attendanceCtx && courseLabels.length > 0) {
+            var colors = attendanceRates.map(function(rate) {
+                if (rate >= 75) return '#27ae60';
+                else if (rate >= 50) return '#f39c12';
+                else return '#e74c3c';
+            });
+
+            new Chart(attendanceCtx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: courseLabels,
+                    datasets: [{
+                        label: 'Attendance Rate (%)',
+                        data: attendanceRates,
+                        backgroundColor: colors,
+                        borderColor: '#2c3e50',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+    });
+
+    function viewCourseDetails(courseCode) {
+        alert('View details for ' + courseCode + '\n(This feature can be implemented to show detailed course analytics)');
+    }
+</script>
+
+<style>
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(-30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.card {
+    animation: slideIn 0.5s ease-out;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    transition: all 0.3s;
+}
+
+.table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+</style>
 
 {% endblock %}
