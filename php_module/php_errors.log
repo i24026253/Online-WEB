@@ -1,0 +1,22 @@
+[10-Nov-2025 08:49:53 Europe/Berlin] ✅ PHP connected to SQL Server successfully!
+
+[10-Nov-2025 08:49:53 Europe/Berlin] === Mark Alert Read Request ===
+[10-Nov-2025 08:49:53 Europe/Berlin] Timestamp: 2025-11-10 08:49:53
+[10-Nov-2025 08:49:53 Europe/Berlin] Method: POST
+[10-Nov-2025 08:49:53 Europe/Berlin] POST data: Array
+(
+    [alert_id] => 2
+)
+
+[10-Nov-2025 08:49:53 Europe/Berlin] GET data: Array
+(
+)
+
+[10-Nov-2025 08:49:53 Europe/Berlin] Raw input: 
+[10-Nov-2025 08:49:53 Europe/Berlin] Alert ID received: 2
+[10-Nov-2025 08:49:53 Europe/Berlin] Processing alert ID: 2
+[10-Nov-2025 08:49:53 Europe/Berlin] Alert found: ID=2, StudentID=1, IsRead=0, Type=Low Attendance
+[10-Nov-2025 08:49:53 Europe/Berlin] Rows affected by UPDATE: 1
+[10-Nov-2025 08:49:53 Europe/Berlin] SUCCESS: Alert 2 marked as read successfully
+[10-Nov-2025 08:49:53 Europe/Berlin] === End of Request ===
+
