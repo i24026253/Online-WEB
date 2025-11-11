@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set "VIRTUAL_ENV=C:\Users\haoho\OneDrive - student.newinti.edu.my\Desktop\Online WEB\Online-WEB\venv"
+set "VIRTUAL_ENV=C:\Users\User\Documents\Attendance_System\Online-WEB\venv"
 
 if not defined PROMPT set PROMPT=$P$G
 
