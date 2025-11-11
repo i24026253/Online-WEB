@@ -4,9 +4,9 @@
 // ============================================
 
 // Your local SQL Server instance and database
-$serverName = "DESKTOP-L8AJQU8\SQLEXPRESS"; // <-- use your actual instance name
+$serverName = "HOH\SQLEXPRESS"; // <-- use your actual instance name
 $connectionOptions = array(
-    "Database" => "Attendance1", // same as Django NAME
+    "Database" => "Attendance2", // same as Django NAME
     "TrustServerCertificate" => true,
     "Encrypt" => false, // disable SSL for local development
 );

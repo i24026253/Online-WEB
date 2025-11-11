@@ -2,10 +2,22 @@ import pyodbc
 import requests
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.http import JsonResponse
 
 # 🔹 LOGIN VIEW
 def login_view(request):
     """Login using dbo.Users table in SQL Server"""
+    # ✅ FIX: Clear any existing session when accessing login page
+    if request.method == 'GET' and 'username' in request.session:
+        # If user is already logged in, redirect to their dashboard
+        role = request.session.get('role', '').lower()
+        if role == 'admin':
+            return redirect('admin_dashboard')
+        elif role == 'lecturer':
+            return redirect('lecturer_dashboard')
+        elif role == 'student':
+            return redirect('student_dashboard')
+    
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
@@ -13,8 +25,8 @@ def login_view(request):
         try:
             conn = pyodbc.connect(
                 'DRIVER={ODBC Driver 17 for SQL Server};'
-                'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
-                'DATABASE=Attendance1;'
+                'SERVER=HOH\SQLEXPRESS;'
+                'DATABASE=Attendance2;'
                 'Trusted_Connection=yes;'
             )
             cursor = conn.cursor()
@@ -55,11 +67,79 @@ def login_view(request):
 
     return render(request, 'login.html')
 
+
+# 🔹 NEW: FORGOT PASSWORD VIEW
+def forgot_password_view(request):
+    """Handle forgot password requests via AJAX"""
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        new_password = request.POST.get('new_password', '').strip()
+        
+        if not username or not new_password:
+            return JsonResponse({
+                'success': False,
+                'message': 'Username and new password are required.'
+            })
+        
+        if len(new_password) < 6:
+            return JsonResponse({
+                'success': False,
+                'message': 'Password must be at least 6 characters long.'
+            })
+        
+        try:
+            conn = pyodbc.connect(
+                'DRIVER={ODBC Driver 17 for SQL Server};'
+                'SERVER=HOH\SQLEXPRESS;'
+                'DATABASE=Attendance2;'
+                'Trusted_Connection=yes;'
+            )
+            cursor = conn.cursor()
+            
+            # Check if username exists
+            cursor.execute("SELECT UserID FROM dbo.Users WHERE Username = ?", (username,))
+            user = cursor.fetchone()
+            
+            if not user:
+                conn.close()
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Username not found.'
+                })
+            
+            # Update password
+            cursor.execute("""
+                UPDATE dbo.Users 
+                SET PasswordHash = ? 
+                WHERE Username = ?
+            """, (new_password, username))
+            
+            conn.commit()
+            conn.close()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Password updated successfully! You can now login with your new password.'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Error updating password: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Invalid request method.'
+    })
+
+
 # 🔹 LOGOUT VIEW
 def logout_view(request):
     request.session.flush()
     messages.success(request, "Logged out successfully.")
     return redirect('login')
+
 
 # 🔹 GENERAL DASHBOARD REDIRECTOR
 def dashboard_view(request):
@@ -77,12 +157,20 @@ def dashboard_view(request):
     else:
         return redirect('login')
 
-# 🔹 ADMIN DASHBOARD (FIXED)
+
+# 🔹 ADMIN DASHBOARD
 def admin_dashboard(request):
+    # ✅ Check authentication
+    if 'username' not in request.session:
+        return redirect('login')
+    
     username = request.session.get('username', 'Unknown')
     role = request.session.get('role', 'unknown')
     first_name = request.session.get('first_name', '')
     last_name = request.session.get('last_name', '')
+    
+    # ✅ FIX: Create display name
+    display_name = f"{first_name} {last_name}" if first_name and last_name else username
     
     total_users = 0
     total_students = 0
@@ -96,8 +184,8 @@ def admin_dashboard(request):
     try:
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
-            'DATABASE=Attendance1;'
+            'SERVER=HOH\SQLEXPRESS;'
+            'DATABASE=Attendance2;'
             'Trusted_Connection=yes;'
         )
         cursor = conn.cursor()
@@ -192,6 +280,7 @@ def admin_dashboard(request):
     context = {
         'user_role': role,
         'username': username,
+        'display_name': display_name,
         'first_name': first_name,
         'last_name': last_name,
         'dashboard_title': f"<i class='fas fa-tachometer-alt me-2'></i>Admin Dashboard - Welcome, {first_name} {last_name}!",
@@ -210,10 +299,17 @@ def admin_dashboard(request):
 
 # 🔹 LECTURER DASHBOARD 
 def lecturer_dashboard(request):
+    # ✅ Check authentication
+    if 'username' not in request.session:
+        return redirect('login')
+    
     username = request.session.get('username', 'Unknown')
     role = request.session.get('role', 'unknown')
     first_name = request.session.get('first_name', '')
     last_name = request.session.get('last_name', '')
+    
+    # ✅ FIX: Create display name
+    display_name = f"{first_name} {last_name}" if first_name and last_name else username
 
     total_courses = 0
     total_students = 0
@@ -226,8 +322,8 @@ def lecturer_dashboard(request):
     try:
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
-            'DATABASE=Attendance1;'
+            'SERVER=HOH\SQLEXPRESS;'
+            'DATABASE=Attendance2;'
             'Trusted_Connection=yes;'
         )
         cursor = conn.cursor()
@@ -366,6 +462,7 @@ def lecturer_dashboard(request):
     context = {
         'user_role': role,
         'username': username,
+        'display_name': display_name,
         'first_name': first_name,
         'last_name': last_name,
         'total_courses': total_courses,
@@ -379,12 +476,20 @@ def lecturer_dashboard(request):
     
     return render(request, 'dashboard/lecturer_dashboard.html', context)
 
+
 # 🔹 STUDENT DASHBOARD
 def student_dashboard(request):
+    # ✅ Check authentication
+    if 'username' not in request.session:
+        return redirect('login')
+    
     username = request.session.get('username') or request.GET.get('username', 'Unknown')
     role = request.session.get('role', 'unknown')
     first_name = request.session.get('first_name', '')
     last_name = request.session.get('last_name', '')
+    
+    # ✅ FIX: Create display name
+    display_name = f"{first_name} {last_name}" if first_name and last_name else username
     
     total_courses = 0
     enrolled_courses = []
@@ -395,8 +500,8 @@ def student_dashboard(request):
     try:
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
-            'DATABASE=Attendance1;'
+            'SERVER=HOH\SQLEXPRESS;'
+            'DATABASE=Attendance2;'
             'Trusted_Connection=yes;'
         )
         cursor = conn.cursor()
@@ -415,6 +520,7 @@ def student_dashboard(request):
             return redirect('login')
         
         student_id, first_name, last_name = student_data
+        display_name = f"{first_name} {last_name}"
         
         from datetime import datetime
         today = datetime.now().strftime('%Y-%m-%d')
@@ -423,7 +529,6 @@ def student_dashboard(request):
         if not request.session.get(session_key, False):
             try:
                 print(f"🔄 Generating alerts for student {student_id} (first time today)")
-                # Call PHP alert generator API
                 alert_response = requests.get(
                     f'http://localhost/php_module/alert_generator.php?action=generate&threshold=75',
                     timeout=5
@@ -434,7 +539,6 @@ def student_dashboard(request):
                         print(f"✅ Alert generation: Created={alert_data.get('created', 0)}, "
                               f"Skipped (read)={alert_data.get('skipped_read', 0)}, "
                               f"Skipped (recent)={alert_data.get('skipped_recent', 0)}")
-                        
                         request.session[session_key] = True
                     else:
                         print(f"❌ Alert generation failed: {alert_data.get('message')}")
@@ -442,11 +546,9 @@ def student_dashboard(request):
                     print(f"❌ Alert generation failed with status: {alert_response.status_code}")
             except Exception as e:
                 print(f"❌ Error calling alert generator: {e}")
-                
         else:
             print(f"ℹ️  Alerts already generated today for student {student_id} - skipping")
         
-        # ✅ Fetch ONLY UNREAD alerts for student
         cursor.execute("""
             SELECT 
                 a.AlertID,
@@ -474,7 +576,6 @@ def student_dashboard(request):
         
         print(f"📋 Found {len(low_attendance_alerts)} UNREAD alerts for student {student_id}")
         
-        # Check if there are any read alerts
         cursor.execute("""
             SELECT COUNT(*) as ReadCount
             FROM dbo.Alerts
@@ -483,7 +584,6 @@ def student_dashboard(request):
         read_count = cursor.fetchone()[0]
         print(f"📖 Student {student_id} has {read_count} READ alerts in database")
         
-        # Fetch enrolled courses
         cursor.execute("""
             SELECT c.CourseID, c.CourseCode, c.CourseName, e.EnrollmentDate, e.Status, e.RejectionReason, e.DropRejectionReason
             FROM dbo.Enrollments e
@@ -510,11 +610,9 @@ def student_dashboard(request):
         messages.warning(request, f"Student stats error: {str(e)} - Using defaults.")
         print(f"❌ Student dashboard error: {e}")
     
-    # Get detailed attendance data by calling the PHP API
     active_course_percentages = []
     
     if student_id:
-        # Attendance for each course
         for course in enrolled_courses:
             if course['Status'] == 'Active':
                 try:
@@ -534,7 +632,6 @@ def student_dashboard(request):
             else:
                 course['percentage'] = 0
         
-        # Calculate overall attendance rate
         if active_course_percentages:
             overall_attendance_rate = sum(active_course_percentages) / len(active_course_percentages)
         else:
@@ -543,6 +640,7 @@ def student_dashboard(request):
     context = {
         'user_role': role,
         'username': username,
+        'display_name': display_name,
         'first_name': first_name,
         'last_name': last_name,
         'student_id': student_id,  
@@ -556,13 +654,7 @@ def student_dashboard(request):
     return render(request, 'dashboard/student_dashboard.html', context)
 
 
-# 🔹 LOGOUT VIEW 
-def logout_view(request):
-    request.session.flush()
-    messages.success(request, "Logged out successfully.")
-    return redirect('login')
-
-# ✨ Report page view 
+# ✨ REPORTS VIEW
 def reports_view(request):
     if 'username' not in request.session:
         return redirect('login')
@@ -571,6 +663,7 @@ def reports_view(request):
     role = request.session.get('role', 'unknown')
     first_name = request.session.get('first_name', '')
     last_name = request.session.get('last_name', '')
+    display_name = f"{first_name} {last_name}" if first_name and last_name else username
     
     period = request.GET.get('period', 'monthly')
     start = request.GET.get('start', '')
@@ -599,8 +692,8 @@ def reports_view(request):
         try:
             conn = pyodbc.connect(
                 'DRIVER={ODBC Driver 17 for SQL Server};'
-                'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
-                'DATABASE=Attendance1;'
+                'SERVER=HOH\SQLEXPRESS;'
+                'DATABASE=Attendance2;'
                 'Trusted_Connection=yes;'
             )
             cursor = conn.cursor()
@@ -621,8 +714,8 @@ def reports_view(request):
         try:
             conn = pyodbc.connect(
                 'DRIVER={ODBC Driver 17 for SQL Server};'
-                'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
-                'DATABASE=Attendance1;'
+                'SERVER=HOH\SQLEXPRESS;'
+                'DATABASE=Attendance2;'
                 'Trusted_Connection=yes;'
             )
             cursor = conn.cursor()
@@ -642,8 +735,8 @@ def reports_view(request):
     try:
         conn = pyodbc.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=DESKTOP-L8AJQU8\SQLEXPRESS;'
-            'DATABASE=Attendance1;'
+            'SERVER=HOH\SQLEXPRESS;'
+            'DATABASE=Attendance2;'
             'Trusted_Connection=yes;'
         )
         cursor = conn.cursor()
@@ -684,7 +777,6 @@ def reports_view(request):
     except Exception as e:
         print(f"Error fetching courses: {e}")
     
-    # Build the API URL
     report_data = {'records': [], 'summary': {'total_records': 0, 'avg_percentage': 0}}
     try:
         url = f'http://localhost/php_module/reports.php?period={period}'
@@ -710,6 +802,7 @@ def reports_view(request):
     context = {
         'user_role': role,
         'username': username,
+        'display_name': display_name,
         'first_name': first_name,
         'last_name': last_name,
         'report_data': report_data,

@@ -14,6 +14,7 @@ urlpatterns = [
     path('', auth_views.login_view, name='login'),
     path('login/', auth_views.login_view, name='login'),
     path('logout/', auth_views.logout_view, name='logout'),
+    path('forgot-password/', auth_views.forgot_password_view, name='forgot_password'),
     
     # Dashboard URLs
     path('dashboard/', auth_views.dashboard_view, name='dashboard'),

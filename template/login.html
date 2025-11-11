@@ -15,7 +15,7 @@
                     <p class="mb-0 mt-2">Sign in to your account</p>
                 </div>
                 <div class="card-body p-5">
-                    <!-- FIXED: Show Django messages -->
+                    <!-- Django messages -->
                     {% if messages %}
                         {% for message in messages %}
                         <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
@@ -59,18 +59,78 @@
                         </button>
                         
                         <div class="text-center">
-                            <a href="#" class="text-decoration-none">Forgot your password?</a>
+                            <a href="#" class="text-decoration-none" data-bs-toggle="modal" data-bs-target="#forgotPasswordModal">
+                                Forgot your password?
+                            </a>
                         </div>
                     </form>
                 </div>
                 <div class="card-footer text-center py-3 bg-light">
                     <small class="text-muted">
-                        <strong>Test Accounts:</strong><br>
-                        Admin: <code>admin / admin</code><br>
-                        Lecturer: <code>lecturer1 / lecturer1</code><br>
-                        Student: <code>student1 / student1</code>
+                       
                     </small>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ✅ Forgot Password Modal -->
+<div class="modal fade" id="forgotPasswordModal" tabindex="-1" aria-labelledby="forgotPasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="forgotPasswordModalLabel">
+                    <i class="fas fa-key me-2"></i>Reset Password
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Alert messages for modal -->
+                <div id="modalAlert" class="alert d-none" role="alert"></div>
+                
+                <form id="forgotPasswordForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="resetUsername" class="form-label">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-user"></i>
+                            </span>
+                            <input type="text" class="form-control" id="resetUsername" name="username" placeholder="Enter your username" required>
+                        </div>
+                        <small class="text-muted">Enter the username associated with your account</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="newPassword" class="form-label">New Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-lock"></i>
+                            </span>
+                            <input type="password" class="form-control" id="newPassword" name="new_password" placeholder="Enter new password" required minlength="6">
+                        </div>
+                        <small class="text-muted">Password must be at least 6 characters</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirmPassword" class="form-label">Confirm Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-lock"></i>
+                            </span>
+                            <input type="password" class="form-control" id="confirmPassword" name="confirm_password" placeholder="Confirm new password" required minlength="6">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="resetPasswordBtn">
+                    <i class="fas fa-check me-2"></i>Reset Password
+                </button>
             </div>
         </div>
     </div>
@@ -102,5 +162,103 @@
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
 }
+
+.modal-content {
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+.modal-header.bg-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+}
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const resetBtn = document.getElementById('resetPasswordBtn');
+    const form = document.getElementById('forgotPasswordForm');
+    const modalAlert = document.getElementById('modalAlert');
+    
+    resetBtn.addEventListener('click', function() {
+        const username = document.getElementById('resetUsername').value.trim();
+        const newPassword = document.getElementById('newPassword').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        
+        // Clear previous alerts
+        modalAlert.className = 'alert d-none';
+        modalAlert.textContent = '';
+        
+        // Validation
+        if (!username || !newPassword || !confirmPassword) {
+            showModalAlert('Please fill in all fields.', 'danger');
+            return;
+        }
+        
+        if (newPassword.length < 6) {
+            showModalAlert('Password must be at least 6 characters long.', 'danger');
+            return;
+        }
+        
+        if (newPassword !== confirmPassword) {
+            showModalAlert('Passwords do not match.', 'danger');
+            return;
+        }
+        
+        // Disable button and show loading
+        resetBtn.disabled = true;
+        resetBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Resetting...';
+        
+        // Get CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        // Send request
+        fetch('{% url "forgot_password" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': csrfToken
+            },
+            body: `username=${encodeURIComponent(username)}&new_password=${encodeURIComponent(newPassword)}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showModalAlert(data.message, 'success');
+                
+                // Clear form
+                form.reset();
+                
+                // Close modal after 2 seconds
+                setTimeout(() => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('forgotPasswordModal'));
+                    modal.hide();
+                }, 2000);
+            } else {
+                showModalAlert(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showModalAlert('An error occurred. Please try again.', 'danger');
+        })
+        .finally(() => {
+            // Re-enable button
+            resetBtn.disabled = false;
+            resetBtn.innerHTML = '<i class="fas fa-check me-2"></i>Reset Password';
+        });
+    });
+    
+    function showModalAlert(message, type) {
+        modalAlert.className = `alert alert-${type}`;
+        modalAlert.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>${message}`;
+    }
+    
+    // Clear form and alerts when modal is closed
+    document.getElementById('forgotPasswordModal').addEventListener('hidden.bs.modal', function() {
+        form.reset();
+        modalAlert.className = 'alert d-none';
+        modalAlert.textContent = '';
+    });
+});
+</script>
 {% endblock %}
