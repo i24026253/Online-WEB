@@ -178,7 +178,7 @@ renderHeader($username, $user_role, 'users');
                         </tr>
 
                         <!-- Edit Modal -->
-                        <div class="modal fade" id="editModal<?php echo $u['UserID']; ?>">
+                        <div class="modal fade" id="edit<?php echo $u['UserID']; ?>">
                             <div class="modal-dialog modal-lg">
                                 <div class="modal-content">
                                     <div class="modal-header">
@@ -225,7 +225,7 @@ renderHeader($username, $user_role, 'users');
                         </div>
 
                         <!-- Delete Modal -->
-                        <div class="modal fade" id="deleteModal<?php echo $u['UserID']; ?>">
+                        <div class="modal fade" id="delete<?php echo $u['UserID']; ?>">
                             <div class="modal-dialog">
                                 <div class="modal-content">
                                     <div class="modal-header">

@@ -180,7 +180,7 @@ renderHeader($username, $user_role, 'students');
                         </tr>
 
                         <!-- Edit Modal -->
-                        <div class="modal fade" id="editModal<?php echo $s['StudentID']; ?>" tabindex="-1">
+                        <div class="modal fade" id="edit<?php echo $s['StudentID']; ?>" tabindex="-1">
                             <div class="modal-dialog modal-lg">
                                 <div class="modal-content">
                                     <div class="modal-header">
@@ -250,7 +250,7 @@ renderHeader($username, $user_role, 'students');
                         </div>
 
                         <!-- Delete Modal -->
-                        <div class="modal fade" id="deleteModal<?php echo $s['StudentID']; ?>" tabindex="-1">
+                        <div class="modal fade" id="delete<?php echo $s['StudentID']; ?>" tabindex="-1">
                             <div class="modal-dialog">
                                 <div class="modal-content">
                                     <div class="modal-header">

@@ -24,16 +24,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_lecturer'])) {
     $specialization = trim($_POST['specialization']);
     $date_of_joining = $_POST['date_of_joining'] ?: date('Y-m-d');
     $office_location = trim($_POST['office_location']) ?: null;
-    $created_date = date('Y-m-d H:i:s');
 
     $check = sqlsrv_query($conn, "SELECT LecturerID FROM dbo.Lecturers WHERE EmployeeNumber = ?", array($employee_number));
     if (sqlsrv_has_rows($check)) {
         $message = "<div class='alert alert-danger alert-dismissible fade show'><i class='fas fa-times-circle me-2'></i>Employee Number already exists!<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>";
     } else {
         $insert = "INSERT INTO dbo.Lecturers 
-            (UserID, EmployeeNumber, Department, Qualification, Specialization, DateOfJoining, OfficeLocation, IsActive, CreatedDate)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)";
-        $params = array($user_id, $employee_number, $department, $qualification, $specialization, $date_of_joining, $office_location, $created_date);
+            (UserID, EmployeeNumber, Department, Qualification, Specialization, DateOfJoining, OfficeLocation, IsActive)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1)";
+        $params = array($user_id, $employee_number, $department, $qualification, $specialization, $date_of_joining, $office_location);
         $result = sqlsrv_query($conn, $insert, $params);
 
         if ($result) {
@@ -53,12 +52,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_lecturer'])) {
     $specialization = trim($_POST['specialization']);
     $date_of_joining = $_POST['date_of_joining'];
     $office_location = trim($_POST['office_location']) ?: null;
-    $updated_date = date('Y-m-d H:i:s');
 
     $update = "UPDATE dbo.Lecturers SET 
-        Department = ?, Qualification = ?, Specialization = ?, DateOfJoining = ?, OfficeLocation = ?, UpdatedDate = ?
+        Department = ?, Qualification = ?, Specialization = ?, DateOfJoining = ?, OfficeLocation = ?
         WHERE LecturerID = ?";
-    $params = array($department, $qualification, $specialization, $date_of_joining, $office_location, $updated_date, $lecturer_id);
+    $params = array($department, $qualification, $specialization, $date_of_joining, $office_location, $lecturer_id);
     $result = sqlsrv_query($conn, $update, $params);
 
     if ($result) {
@@ -100,6 +98,13 @@ while ($row = sqlsrv_fetch_array($users_result, SQLSRV_FETCH_ASSOC)) {
 
 renderHeader($username, $user_role, 'lecturers');
 ?>
+
+<!-- INFO MESSAGE -->
+<div class="alert alert-info alert-dismissible fade show" role="alert">
+    <i class="fas fa-info-circle me-2"></i>
+    <strong>Important:</strong> Please add a user account with the "Lecturer" role first before adding lecturer details. A lecturer profile must be linked to an existing user account.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
 
 <div class="mb-4 d-flex justify-content-between align-items-center">
     <h1 class="h2"><i class="fas fa-chalkboard-teacher me-2"></i>Lecturer Management</h1>
@@ -172,7 +177,7 @@ renderHeader($username, $user_role, 'lecturers');
                         </tr>
 
                         <!-- Edit Modal -->
-                        <div class="modal fade" id="editModal<?php echo $l['LecturerID']; ?>" tabindex="-1">
+                        <div class="modal fade" id="edit<?php echo $l['LecturerID']; ?>" tabindex="-1">
                             <div class="modal-dialog modal-lg">
                                 <div class="modal-content">
                                     <div class="modal-header">
@@ -217,7 +222,7 @@ renderHeader($username, $user_role, 'lecturers');
                         </div>
 
                         <!-- Delete Modal -->
-                        <div class="modal fade" id="deleteModal<?php echo $l['LecturerID']; ?>" tabindex="-1">
+                        <div class="modal fade" id="delete<?php echo $l['LecturerID']; ?>" tabindex="-1">
                             <div class="modal-dialog">
                                 <div class="modal-content">
                                     <div class="modal-header">

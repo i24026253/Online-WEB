@@ -97,9 +97,9 @@ function renderHeader($username, $user_role = 'student', $active_page = '') {
                                         <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                                     </a>
                                 </li>
-                                <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-users me-2"></i>Users</a></li>
-                                <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-graduation-cap me-2"></i>Students</a></li>
-                                <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-chalkboard-teacher me-2"></i>Lecturers</a></li>
+                                <li class="nav-item"><a class="nav-link" href="http://localhost/php_module/user.php?username=<?php echo urlencode($username); ?>"><i class="fas fa-users me-2"></i>Users</a></li>
+                                <li class="nav-item"><a class="nav-link" href="http://localhost/php_module/student.php?username=<?php echo urlencode($username); ?>"><i class="fas fa-graduation-cap me-2"></i>Students</a></li>
+                                <li class="nav-item"><a class="nav-link" href="http://localhost/php_module/lecturer.php?username=<?php echo urlencode($username); ?>"><i class="fas fa-chalkboard-teacher me-2"></i>Lecturers</a></li>
                                 <li class="nav-item">
                                     <a class="nav-link <?php echo $active_page === 'courses' ? 'active' : ''; ?>" href="http://localhost/php_module/courses.php?username=<?php echo urlencode($username); ?>">
                                         <i class="fas fa-book me-2"></i>Courses
